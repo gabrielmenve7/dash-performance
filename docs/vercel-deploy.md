@@ -60,7 +60,7 @@ curl -s -H "Authorization: Bearer SEU_CRON_SECRET" http://localhost:3000/api/syn
 
 **Logs:** Vercel → **Cron Jobs** → **View Logs**, ou **Logs** com filtro no path `/api/sync`.
 
-**Limites:** Plano Hobby restringe frequência de crons; expressões como a cada 6 horas podem exigir plano pago. Ajuste o `schedule` em `vercel.json` se o deploy falhar por limite.
+**Limites:** No plano Hobby o cron só pode rodar **no máximo uma vez por dia**. O `vercel.json` usa `0 8 * * *` (todo dia às **08:00 UTC**). Para mais frequência, use plano pago ou outro agendador.
 
 ## 6. Checklist pós-deploy
 
