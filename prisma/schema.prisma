@@ -1,0 +1,167 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  TEAM
+  CLIENT
+}
+
+enum Platform {
+  META
+  GOOGLE
+}
+
+enum CampaignStatus {
+  ACTIVE
+  PAUSED
+  REMOVED
+  ARCHIVED
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  passwordHash  String
+  role          Role      @default(TEAM)
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  clientAccess  ClientUser[]
+  notes         Note[]
+
+  @@map("users")
+}
+
+model Client {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  industry    String?
+  website     String?
+  logoUrl     String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  adAccounts  AdAccount[]
+  users       ClientUser[]
+  notes       Note[]
+
+  @@map("clients")
+}
+
+model ClientUser {
+  id       String @id @default(cuid())
+  userId   String
+  clientId String
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, clientId])
+  @@map("client_users")
+}
+
+model AdAccount {
+  id              String   @id @default(cuid())
+  clientId        String
+  platform        Platform
+  accountId       String
+  accountName     String
+  accessToken     String?
+  refreshToken    String?
+  tokenExpiresAt  DateTime?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  client    Client     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  campaigns Campaign[]
+  syncLogs  SyncLog[]
+
+  @@unique([platform, accountId])
+  @@map("ad_accounts")
+}
+
+model Campaign {
+  id            String         @id @default(cuid())
+  adAccountId   String
+  platformCampaignId String
+  name          String
+  status        CampaignStatus @default(ACTIVE)
+  objective     String?
+  dailyBudget   Float?
+  lifetimeBudget Float?
+  startDate     DateTime?
+  endDate       DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  adAccount AdAccount        @relation(fields: [adAccountId], references: [id], onDelete: Cascade)
+  metrics   CampaignMetrics[]
+
+  @@unique([adAccountId, platformCampaignId])
+  @@map("campaigns")
+}
+
+model CampaignMetrics {
+  id           String   @id @default(cuid())
+  campaignId   String
+  date         DateTime @db.Date
+  spend        Float    @default(0)
+  impressions  Int      @default(0)
+  reach        Int      @default(0)
+  clicks       Int      @default(0)
+  conversions  Int      @default(0)
+  revenue      Float    @default(0)
+  leads        Int      @default(0)
+  ctr          Float    @default(0)
+  cpc          Float    @default(0)
+  cpm          Float    @default(0)
+  cpa          Float    @default(0)
+  roas         Float    @default(0)
+  frequency    Float    @default(0)
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, date])
+  @@index([date])
+  @@map("campaign_metrics")
+}
+
+model SyncLog {
+  id          String   @id @default(cuid())
+  adAccountId String
+  status      String
+  message     String?
+  startedAt   DateTime @default(now())
+  completedAt DateTime?
+  recordsSync Int      @default(0)
+
+  adAccount AdAccount @relation(fields: [adAccountId], references: [id], onDelete: Cascade)
+
+  @@map("sync_logs")
+}
+
+model Note {
+  id        String   @id @default(cuid())
+  clientId  String
+  userId    String
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notes")
+}
