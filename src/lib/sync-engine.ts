@@ -20,6 +20,16 @@ function syncHistoryDays(): number {
   return Math.min(n, 730);
 }
 
+function safeFloat(value: string | number | null | undefined): number {
+  const n = typeof value === "number" ? value : parseFloat(value ?? "");
+  return Number.isFinite(n) ? n : 0;
+}
+
+function safeInt(value: string | number | null | undefined): number {
+  const n = typeof value === "number" ? value : parseInt(value ?? "", 10);
+  return Number.isFinite(n) ? n : 0;
+}
+
 export async function syncAllAccounts() {
   const accounts = await prisma.adAccount.findMany({
     where: { isActive: true },
@@ -80,8 +90,8 @@ async function syncMetaAccount(account: {
           name: campaign.name,
           status: parseMetaStatus(campaign.status) as "ACTIVE" | "PAUSED" | "REMOVED" | "ARCHIVED",
           objective: campaign.objective,
-          dailyBudget: campaign.daily_budget ? parseFloat(campaign.daily_budget) / 100 : null,
-          lifetimeBudget: campaign.lifetime_budget ? parseFloat(campaign.lifetime_budget) / 100 : null,
+          dailyBudget: campaign.daily_budget ? safeFloat(campaign.daily_budget) / 100 : null,
+          lifetimeBudget: campaign.lifetime_budget ? safeFloat(campaign.lifetime_budget) / 100 : null,
         },
         create: {
           adAccountId: account.id,
@@ -89,8 +99,8 @@ async function syncMetaAccount(account: {
           name: campaign.name,
           status: parseMetaStatus(campaign.status) as "ACTIVE" | "PAUSED" | "REMOVED" | "ARCHIVED",
           objective: campaign.objective,
-          dailyBudget: campaign.daily_budget ? parseFloat(campaign.daily_budget) / 100 : null,
-          lifetimeBudget: campaign.lifetime_budget ? parseFloat(campaign.lifetime_budget) / 100 : null,
+          dailyBudget: campaign.daily_budget ? safeFloat(campaign.daily_budget) / 100 : null,
+          lifetimeBudget: campaign.lifetime_budget ? safeFloat(campaign.lifetime_budget) / 100 : null,
           startDate: campaign.start_time ? new Date(campaign.start_time) : null,
           endDate: campaign.stop_time ? new Date(campaign.stop_time) : null,
         },
@@ -113,10 +123,14 @@ async function syncMetaAccount(account: {
       if (!dbCampaign) continue;
 
       const { conversions, revenue, leads } = extractConversions(insight);
-      const spend = parseFloat(insight.spend);
-      const impressions = parseInt(insight.impressions, 10);
-      const clicks = parseInt(insight.clicks, 10);
-      const reach = parseInt(insight.reach, 10);
+      const spend = safeFloat(insight.spend);
+      const impressions = safeInt(insight.impressions);
+      const clicks = safeInt(insight.clicks);
+      const reach = safeInt(insight.reach);
+      const ctr = safeFloat(insight.ctr);
+      const cpc = safeFloat(insight.cpc);
+      const cpm = safeFloat(insight.cpm);
+      const frequency = safeFloat(insight.frequency);
 
       await prisma.campaignMetrics.upsert({
         where: {
@@ -133,12 +147,12 @@ async function syncMetaAccount(account: {
           conversions,
           revenue,
           leads,
-          ctr: parseFloat(insight.ctr),
-          cpc: parseFloat(insight.cpc),
-          cpm: parseFloat(insight.cpm),
+          ctr,
+          cpc,
+          cpm,
           cpa: conversions > 0 ? spend / conversions : 0,
           roas: spend > 0 ? revenue / spend : 0,
-          frequency: parseFloat(insight.frequency),
+          frequency,
         },
         create: {
           campaignId: dbCampaign.id,
@@ -150,12 +164,12 @@ async function syncMetaAccount(account: {
           conversions,
           revenue,
           leads,
-          ctr: parseFloat(insight.ctr),
-          cpc: parseFloat(insight.cpc),
-          cpm: parseFloat(insight.cpm),
+          ctr,
+          cpc,
+          cpm,
           cpa: conversions > 0 ? spend / conversions : 0,
           roas: spend > 0 ? revenue / spend : 0,
-          frequency: parseFloat(insight.frequency),
+          frequency,
         },
       });
 
@@ -246,12 +260,13 @@ async function syncGoogleAccount(account: {
       if (!dbCampaign) continue;
 
       const spend = microsToDecimal(metric.metrics.costMicros);
-      const impressions = parseInt(metric.metrics.impressions, 10);
-      const clicks = parseInt(metric.metrics.clicks, 10);
-      const conversions = Math.round(metric.metrics.conversions);
-      const revenue = metric.metrics.conversionsValue;
-      const cpc = microsToDecimal(metric.metrics.averageCpc);
-      const cpm = microsToDecimal(metric.metrics.averageCpm);
+      const impressions = safeInt(metric.metrics.impressions);
+      const clicks = safeInt(metric.metrics.clicks);
+      const conversions = Math.round(safeFloat(metric.metrics.conversions));
+      const revenue = safeFloat(metric.metrics.conversionsValue);
+      const cpc = safeFloat(microsToDecimal(metric.metrics.averageCpc));
+      const cpm = safeFloat(microsToDecimal(metric.metrics.averageCpm));
+      const ctr = safeFloat(metric.metrics.ctr) * 100;
 
       await prisma.campaignMetrics.upsert({
         where: {
@@ -266,7 +281,7 @@ async function syncGoogleAccount(account: {
           clicks,
           conversions,
           revenue,
-          ctr: metric.metrics.ctr * 100,
+          ctr,
           cpc,
           cpm,
           cpa: conversions > 0 ? spend / conversions : 0,
@@ -280,7 +295,7 @@ async function syncGoogleAccount(account: {
           clicks,
           conversions,
           revenue,
-          ctr: metric.metrics.ctr * 100,
+          ctr,
           cpc,
           cpm,
           cpa: conversions > 0 ? spend / conversions : 0,

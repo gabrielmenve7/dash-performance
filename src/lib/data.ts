@@ -38,6 +38,120 @@ export async function getOverviewMetrics(from: Date, to: Date): Promise<MetricsS
   return aggregateMetrics(metrics);
 }
 
+/** KPIs agregados de todas as campanhas do cliente no período (via campaignMetrics). */
+export async function getOverviewMetricsForClient(
+  clientId: string,
+  from: Date,
+  to: Date
+): Promise<MetricsSummary> {
+  const metrics = await prisma.campaignMetrics.findMany({
+    where: {
+      date: { gte: from, lte: to },
+      campaign: { adAccount: { clientId } },
+    },
+  });
+  return aggregateMetrics(metrics);
+}
+
+export async function getActiveClientsForSelector(): Promise<{ id: string; name: string }[]> {
+  return prisma.client.findMany({
+    where: { isActive: true },
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+  });
+}
+
+export async function getActiveClientById(clientId: string) {
+  return prisma.client.findFirst({
+    where: { id: clientId, isActive: true },
+    select: { id: true, name: true, slug: true, industry: true },
+  });
+}
+
+/** Soma totais brutos de vários resumos e recalcula taxas (para período anterior agregado). */
+export function sumMetricsSummaries(summaries: MetricsSummary[]): MetricsSummary {
+  if (summaries.length === 0) {
+    return {
+      spend: 0,
+      impressions: 0,
+      reach: 0,
+      clicks: 0,
+      conversions: 0,
+      revenue: 0,
+      leads: 0,
+      ctr: 0,
+      cpc: 0,
+      cpm: 0,
+      cpa: 0,
+      roas: 0,
+      frequency: 0,
+    };
+  }
+  const t = summaries.reduce(
+    (acc, m) => ({
+      spend: acc.spend + m.spend,
+      impressions: acc.impressions + m.impressions,
+      reach: acc.reach + m.reach,
+      clicks: acc.clicks + m.clicks,
+      conversions: acc.conversions + m.conversions,
+      revenue: acc.revenue + m.revenue,
+      leads: acc.leads + m.leads,
+    }),
+    {
+      spend: 0,
+      impressions: 0,
+      reach: 0,
+      clicks: 0,
+      conversions: 0,
+      revenue: 0,
+      leads: 0,
+    }
+  );
+  const ctr = t.impressions > 0 ? (t.clicks / t.impressions) * 100 : 0;
+  const cpc = t.clicks > 0 ? t.spend / t.clicks : 0;
+  const cpm = t.impressions > 0 ? (t.spend / t.impressions) * 1000 : 0;
+  const cpa = t.conversions > 0 ? t.spend / t.conversions : 0;
+  const roas = t.spend > 0 ? t.revenue / t.spend : 0;
+  const frequency = t.reach > 0 ? t.impressions / t.reach : 0;
+  return { ...t, ctr, cpc, cpm, cpa, roas, frequency };
+}
+
+/** Campanhas com métricas agregadas no período, sem série diária (contexto leve para o assistente). */
+export async function getAssistantCampaignSummaries(
+  clientId: string,
+  from: Date,
+  to: Date,
+  limit = 40
+): Promise<
+  {
+    name: string;
+    platform: PlatformType;
+    status: string;
+    objective: string | null;
+    metrics: MetricsSummary;
+  }[]
+> {
+  const campaigns = await prisma.campaign.findMany({
+    where: { adAccount: { clientId } },
+    include: {
+      adAccount: { select: { platform: true } },
+      metrics: {
+        where: { date: { gte: from, lte: to } },
+      },
+    },
+    orderBy: { name: "asc" },
+    take: limit,
+  });
+
+  return campaigns.map((c) => ({
+    name: c.name,
+    platform: c.adAccount.platform as PlatformType,
+    status: c.status,
+    objective: c.objective,
+    metrics: aggregateMetrics(c.metrics),
+  }));
+}
+
 export async function getClientsWithMetrics(
   from: Date,
   to: Date,

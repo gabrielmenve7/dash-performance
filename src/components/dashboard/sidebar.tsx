@@ -12,6 +12,7 @@ import {
   LogOut,
   ChevronLeft,
   ChevronRight,
+  MessageSquare,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { useState } from "react";
@@ -25,6 +26,7 @@ interface SidebarProps {
 }
 
 const adminLinks = [
+  { href: "/assistant", label: "Assistente", icon: MessageSquare },
   { href: "/", label: "Overview", icon: LayoutDashboard },
   { href: "/clients", label: "Clientes", icon: Users },
   { href: "/reports", label: "Relatórios", icon: FileText },

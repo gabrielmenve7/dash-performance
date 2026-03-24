@@ -20,6 +20,7 @@ Em **Project → Settings → Environment Variables**, para o ambiente **Product
 | `NEXTAUTH_URL` | URL **exata** que o usuário usa no navegador, com **https** e **sem** barra final (ex.: `https://seu-projeto.vercel.app`). O código usa `trustHost` para produção na Vercel. |
 | `CRON_SECRET` | Obrigatório para o cron da Vercel chamar `/api/sync` com segurança (string aleatória ≥ 16 caracteres). A Vercel envia `Authorization: Bearer <CRON_SECRET>` automaticamente quando esta variável existe. |
 | `META_APP_ID`, `META_APP_SECRET`, etc. | Copie de `.env.example` o que for usar. |
+| `OPENAI_API_KEY` | Opcional. Habilita o **Assistente** (`/assistant` e `POST /api/assistant/chat`). Uso da API OpenAI é **por conta do operador** do painel; defina limites e monitoramento no dashboard OpenAI. |
 
 Após alterar variáveis, faça **Redeploy** do último deployment.
 

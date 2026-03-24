@@ -88,6 +88,7 @@ export function ClientDetailDashboard({
           campaigns: CampaignWithMetrics[];
           metrics: MetricsSummary;
           dailyData: DailyMetric[];
+          previousMetrics?: MetricsSummary;
         }>;
       })
       .then((data) => {

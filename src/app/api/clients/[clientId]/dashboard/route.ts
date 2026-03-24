@@ -5,6 +5,7 @@ import {
   aggregateCampaignListMetrics,
   getClientCampaigns,
   getDailyMetrics,
+  sumMetricsSummaries,
 } from "@/lib/data";
 import { subDays } from "date-fns";
 import type { PlatformType } from "@/types";
@@ -64,6 +65,11 @@ export async function GET(
   ]);
 
   const metrics = aggregateCampaignListMetrics(campaigns);
+  const previousMetrics = sumMetricsSummaries(
+    campaigns
+      .map((c) => c.previousMetrics)
+      .filter((m): m is NonNullable<typeof m> => m != null)
+  );
 
-  return NextResponse.json({ campaigns, metrics, dailyData });
+  return NextResponse.json({ campaigns, metrics, dailyData, previousMetrics });
 }
