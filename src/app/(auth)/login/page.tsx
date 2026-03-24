@@ -21,10 +21,13 @@ export default function LoginPage() {
     const password = formData.get("password") as string;
 
     try {
+      const origin =
+        typeof window !== "undefined" ? window.location.origin : "";
       const result = await signIn("credentials", {
         email,
         password,
         redirect: false,
+        callbackUrl: `${origin}/`,
       });
 
       if (!result || result.error || !result.ok) {

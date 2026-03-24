@@ -68,3 +68,12 @@ curl -s -H "Authorization: Bearer SEU_CRON_SECRET" http://localhost:3000/api/syn
 - [ ] Rede do navegador: sem 404 em `/_next/static/css/...`.
 - [ ] Sessão/cookies estáveis (domínio alinhado com `NEXTAUTH_URL`).
 - [ ] Primeira invocação do cron ou logs sem 401 em `/api/sync`.
+
+### Login ok no servidor mas o navegador não entra
+
+1. Rode `npx prisma db push` e `npm run db:seed` com a **mesma** `DATABASE_URL` da Vercel (usuários demo no Neon).
+2. Confira `NEXTAUTH_URL` **exatamente** igual à URL do site (sem `/` no final).
+3. Atualização forçada: **Ctrl+Shift+R** ou aba **anônima**.
+4. No DevTools → **Application** → **Cookies**, apague cookies do domínio e tente de novo.
+
+O backend de auth responde certo se `POST /api/auth/callback/credentials` retornar **200** com cookie de sessão após senha válida.
