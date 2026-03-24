@@ -3,6 +3,14 @@
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { useMemo, useState, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { FileUp, Paperclip, Send, Square, X } from "lucide-react";
@@ -10,6 +18,7 @@ import { toast } from "sonner";
 
 interface AssistantChatProps {
   clientId: string;
+  clientOptions: { id: string; name: string }[];
   hasApiKey: boolean;
 }
 
@@ -85,10 +94,10 @@ async function extractTextIfSupported(file: File): Promise<string | undefined> {
   return undefined;
 }
 
-export function AssistantChat({ clientId, hasApiKey }: AssistantChatProps) {
+export function AssistantChat({ clientId, clientOptions, hasApiKey }: AssistantChatProps) {
+  const router = useRouter();
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const composerInputRef = useRef<HTMLTextAreaElement>(null);
 
   const [attachments, setAttachments] = useState<AttachmentDraft[]>([]);
   const [animatedPrompt, setAnimatedPrompt] = useState("");
@@ -237,6 +246,11 @@ export function AssistantChat({ clientId, hasApiKey }: AssistantChatProps) {
     void submitMessage();
   }
 
+  function onClientChange(nextId: string) {
+    router.push(`/assistant?client=${nextId}`);
+    router.refresh();
+  }
+
   return (
     <div className="relative min-h-[calc(100vh-7rem)] max-w-5xl mx-auto">
       {!hasApiKey && (
@@ -248,7 +262,23 @@ export function AssistantChat({ clientId, hasApiKey }: AssistantChatProps) {
       )}
 
       <div className="absolute inset-0 flex flex-col">
-        <div className={cn("flex-1 overflow-y-auto px-4", messages.length === 0 ? "hidden" : "pt-6 pb-48 space-y-4")}>
+        <div className="shrink-0 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-4 pt-1 pb-2">
+          <span className="text-sm font-medium text-foreground">Assistente</span>
+          <Select value={clientId} onValueChange={onClientChange}>
+            <SelectTrigger className="w-full sm:w-[280px]">
+              <SelectValue placeholder="Cliente" />
+            </SelectTrigger>
+            <SelectContent>
+              {clientOptions.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className={cn("flex-1 overflow-y-auto px-4", messages.length === 0 ? "hidden" : "pt-2 pb-48 space-y-4")}>
           {error && (
             <div className="rounded-lg border border-destructive/50 bg-destructive/5 px-4 py-3 text-sm text-destructive flex flex-col gap-2">
               <span>{error.message}</span>
@@ -291,26 +321,9 @@ export function AssistantChat({ clientId, hasApiKey }: AssistantChatProps) {
 
         {messages.length === 0 && (
           <div className="flex-1 flex items-center justify-center px-4">
-            <div className="w-full max-w-3xl space-y-6">
-              <h1 className="text-3xl sm:text-4xl tracking-tight text-foreground/95 text-center">
-                O que quer fazer hoje?
-              </h1>
-              <div className="flex flex-wrap items-center justify-center gap-2">
-                {EXAMPLE_PROMPTS.slice(0, 4).map((example) => (
-                  <button
-                    key={example}
-                    type="button"
-                    className="rounded-full border border-border/70 bg-background/60 px-3 py-1.5 text-xs text-muted-foreground transition hover:text-foreground hover:border-border"
-                    onClick={() => {
-                      setInput(example);
-                      composerInputRef.current?.focus();
-                    }}
-                  >
-                    {example}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <h1 className="text-3xl sm:text-4xl tracking-tight text-foreground/95 text-center max-w-3xl">
+              O que quer fazer hoje?
+            </h1>
           </div>
         )}
 
@@ -370,7 +383,6 @@ export function AssistantChat({ clientId, hasApiKey }: AssistantChatProps) {
               </Button>
 
               <textarea
-                ref={composerInputRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => {
