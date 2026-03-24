@@ -33,6 +33,7 @@ export async function GET(
   const fromStr = req.nextUrl.searchParams.get("from");
   const toStr = req.nextUrl.searchParams.get("to");
   const platformParam = req.nextUrl.searchParams.get("platform");
+  const objectiveParam = req.nextUrl.searchParams.get("objective");
 
   if (!fromStr || !toStr) {
     return NextResponse.json(
@@ -60,8 +61,8 @@ export async function GET(
   const prevFrom = subDays(prevTo, diffDays);
 
   const [campaigns, dailyData] = await Promise.all([
-    getClientCampaigns(clientId, from, to, platform, prevFrom, prevTo),
-    getDailyMetrics(clientId, from, to, platform),
+    getClientCampaigns(clientId, from, to, platform, prevFrom, prevTo, objectiveParam ?? "ALL"),
+    getDailyMetrics(clientId, from, to, platform, objectiveParam ?? "ALL"),
   ]);
 
   const metrics = aggregateCampaignListMetrics(campaigns);

@@ -1,6 +1,57 @@
 import { prisma } from "@/lib/prisma";
 import type { MetricsSummary, ClientWithMetrics, CampaignWithMetrics, DailyMetric, PlatformType } from "@/types";
 
+function objectiveFilter(objective?: string | "ALL"): Record<string, unknown> | undefined {
+  if (!objective || objective === "ALL") return undefined;
+
+  if (objective === "CONVERSAS") {
+    return {
+      OR: [
+        { objective: { contains: "message", mode: "insensitive" } },
+        { objective: { contains: "messaging", mode: "insensitive" } },
+        { objective: { contains: "lead", mode: "insensitive" } },
+        { objective: { contains: "conversa", mode: "insensitive" } },
+        { objective: { contains: "whatsapp", mode: "insensitive" } },
+      ],
+    };
+  }
+
+  if (objective === "COMPRAS") {
+    return {
+      OR: [
+        { objective: { contains: "sale", mode: "insensitive" } },
+        { objective: { contains: "purchase", mode: "insensitive" } },
+        { objective: { contains: "shopping", mode: "insensitive" } },
+        { objective: { contains: "compra", mode: "insensitive" } },
+      ],
+    };
+  }
+
+  if (objective === "OUTROS") {
+    return {
+      AND: [
+        {
+          NOT: {
+            OR: [
+              { objective: { contains: "message", mode: "insensitive" } },
+              { objective: { contains: "messaging", mode: "insensitive" } },
+              { objective: { contains: "lead", mode: "insensitive" } },
+              { objective: { contains: "conversa", mode: "insensitive" } },
+              { objective: { contains: "whatsapp", mode: "insensitive" } },
+              { objective: { contains: "sale", mode: "insensitive" } },
+              { objective: { contains: "purchase", mode: "insensitive" } },
+              { objective: { contains: "shopping", mode: "insensitive" } },
+              { objective: { contains: "compra", mode: "insensitive" } },
+            ],
+          },
+        },
+      ],
+    };
+  }
+
+  return { objective };
+}
+
 function aggregateMetrics(
   metrics: { spend: number; impressions: number; reach: number; clicks: number; conversions: number; revenue: number; leads: number; ctr: number; cpc: number; cpm: number; cpa: number; roas: number; frequency: number }[]
 ): MetricsSummary {
@@ -226,7 +277,8 @@ export async function getClientCampaigns(
   to: Date,
   platform?: PlatformType | "ALL",
   prevFrom?: Date,
-  prevTo?: Date
+  prevTo?: Date,
+  objective?: string | "ALL"
 ): Promise<CampaignWithMetrics[]> {
   const whereClause: Record<string, unknown> = {
     adAccount: { clientId },
@@ -234,6 +286,10 @@ export async function getClientCampaigns(
 
   if (platform && platform !== "ALL") {
     whereClause.adAccount = { clientId, platform };
+  }
+  const objectiveWhere = objectiveFilter(objective);
+  if (objectiveWhere) {
+    Object.assign(whereClause, objectiveWhere);
   }
 
   const campaigns = await prisma.campaign.findMany({
@@ -294,7 +350,8 @@ export async function getDailyMetrics(
   clientId: string,
   from: Date,
   to: Date,
-  platform?: PlatformType | "ALL"
+  platform?: PlatformType | "ALL",
+  objective?: string | "ALL"
 ): Promise<DailyMetric[]> {
   const campaignFilter: Record<string, unknown> = {};
   if (clientId) {
@@ -303,6 +360,10 @@ export async function getDailyMetrics(
       : { clientId };
   } else if (platform && platform !== "ALL") {
     campaignFilter.adAccount = { platform };
+  }
+  const objectiveWhere = objectiveFilter(objective);
+  if (objectiveWhere) {
+    Object.assign(campaignFilter, objectiveWhere);
   }
 
   const whereClause: Record<string, unknown> = {
