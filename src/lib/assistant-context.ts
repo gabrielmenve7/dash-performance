@@ -7,6 +7,28 @@ function assistantHistoryDays(): number {
   return Math.min(n, 365);
 }
 
+type AssistantDaily = {
+  date: string;
+  spend: number;
+  conversationsStarted: number;
+  clicks: number;
+  impressions: number;
+  ctr: number;
+  cpc: number;
+};
+
+function summarizeWindow(daily: AssistantDaily[], days: number) {
+  const slice = daily.slice(-days);
+  return {
+    days,
+    rows: slice.length,
+    spend: slice.reduce((acc, d) => acc + d.spend, 0),
+    conversationsStarted: slice.reduce((acc, d) => acc + d.conversationsStarted, 0),
+    clicks: slice.reduce((acc, d) => acc + d.clicks, 0),
+    impressions: slice.reduce((acc, d) => acc + d.impressions, 0),
+  };
+}
+
 /** Resumo estruturado (últimos ~30 dias) para o system prompt do assistente. */
 export async function buildAssistantContextJson(clientId: string): Promise<string> {
   const to = new Date();
@@ -17,21 +39,40 @@ export async function buildAssistantContextJson(clientId: string): Promise<strin
     getDailyMetrics(clientId, from, to),
   ]);
 
+  const dailyRows: AssistantDaily[] = daily.map((d) => ({
+    date: d.date,
+    spend: d.spend,
+    conversationsStarted: d.conversions,
+    clicks: d.clicks,
+    impressions: d.impressions,
+    ctr: d.ctr,
+    cpc: d.cpc,
+  }));
+
+  const campaignsWithSpend = campaigns.filter((c) => c.metrics.spend > 0);
+  const statusBreakdown = campaignsWithSpend.reduce<Record<string, number>>((acc, c) => {
+    const key = c.status ?? "UNKNOWN";
+    acc[key] = (acc[key] ?? 0) + 1;
+    return acc;
+  }, {});
+
   return JSON.stringify(
     {
       clientId,
       granularity: "daily",
       period: { from: from.toISOString(), to: to.toISOString() },
       totals,
-      daily: daily.map((d) => ({
-        date: d.date,
-        spend: d.spend,
-        conversationsStarted: d.conversions,
-        clicks: d.clicks,
-        impressions: d.impressions,
-        ctr: d.ctr,
-        cpc: d.cpc,
-      })),
+      summaries: {
+        last7d: summarizeWindow(dailyRows, 7),
+        last14d: summarizeWindow(dailyRows, 14),
+        last30d: summarizeWindow(dailyRows, 30),
+        campaigns: {
+          total: campaigns.length,
+          withSpendInWindow: campaignsWithSpend.length,
+          statusBreakdownWithSpend: statusBreakdown,
+        },
+      },
+      daily: dailyRows,
       campaigns: campaigns.map((c) => ({
         name: c.name,
         platform: c.platform,
