@@ -1,5 +1,6 @@
 import { format } from "date-fns";
 import { prisma } from "@/lib/prisma";
+import { extractConversions, fetchMetaAdLevelInsights, type MetaAdInsight } from "@/lib/meta-ads";
 import type { MetricsSummary, ClientWithMetrics, CampaignWithMetrics, DailyMetric, PlatformType } from "@/types";
 
 function objectiveFilter(objective?: string | "ALL"): Record<string, unknown> | undefined {
@@ -204,6 +205,108 @@ export async function getAssistantCampaignSummaries(
     objective: c.objective,
     metrics: aggregateMetrics(c.metrics),
   }));
+}
+
+/** Resumo por anúncio Meta (nome do anúncio, conjunto e campanha + métricas no período). */
+export type AssistantAdSummary = {
+  adId: string;
+  adName: string;
+  adSetId: string;
+  adSetName: string;
+  campaignId: string;
+  campaignName: string;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  conversationsStarted: number;
+  ctr: number;
+  cpc: number;
+  costPerConversation: number;
+};
+
+function safeInsightFloat(value: string | undefined): number {
+  const n = parseFloat(value ?? "");
+  return Number.isFinite(n) ? n : 0;
+}
+
+function safeInsightInt(value: string | undefined): number {
+  const n = parseInt(value ?? "", 10);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/**
+ * Agrega insights no nível de anúncio (API Meta) para o assistente.
+ * Filtra por campanhas já sincronizadas no banco quando houver; caso contrário inclui todas do período.
+ */
+export async function getAssistantAdLevelSummaries(
+  clientId: string,
+  from: Date,
+  to: Date,
+  limit = 80
+): Promise<AssistantAdSummary[]> {
+  const fromStr = format(from, "yyyy-MM-dd");
+  const toStr = format(to, "yyyy-MM-dd");
+  const maxRows = Math.min(
+    Math.max(1, parseInt(process.env.ASSISTANT_ADS_LIMIT ?? String(limit), 10) || limit),
+    200
+  );
+
+  const [accounts, clientCampaigns] = await Promise.all([
+    prisma.adAccount.findMany({
+      where: { clientId, platform: "META", isActive: true, accessToken: { not: null } },
+      select: { accountId: true, accessToken: true },
+    }),
+    prisma.campaign.findMany({
+      where: { adAccount: { clientId } },
+      select: { platformCampaignId: true },
+    }),
+  ]);
+
+  const campaignIdSet = new Set(clientCampaigns.map((c) => c.platformCampaignId));
+  const out: AssistantAdSummary[] = [];
+
+  for (const acc of accounts) {
+    if (!acc.accessToken) continue;
+    let insights: MetaAdInsight[];
+    try {
+      insights = await fetchMetaAdLevelInsights(acc.accessToken, acc.accountId, fromStr, toStr);
+    } catch {
+      continue;
+    }
+
+    for (const insight of insights) {
+      if (campaignIdSet.size > 0 && !campaignIdSet.has(insight.campaign_id)) continue;
+      const adId = insight.ad_id?.trim() ?? "";
+      if (!adId) continue;
+
+      const { conversions } = extractConversions(insight);
+      const spend = safeInsightFloat(insight.spend);
+      const impressions = safeInsightInt(insight.impressions);
+      const clicks = safeInsightInt(insight.clicks);
+      const ctr = impressions > 0 ? (clicks / impressions) * 100 : safeInsightFloat(insight.ctr);
+      const cpc = clicks > 0 ? spend / clicks : safeInsightFloat(insight.cpc);
+      const costPerConversation = conversions > 0 ? spend / conversions : 0;
+
+      out.push({
+        adId,
+        adName: insight.ad_name ?? "",
+        adSetId: insight.adset_id ?? "",
+        adSetName: insight.adset_name ?? "",
+        campaignId: insight.campaign_id,
+        campaignName: insight.campaign_name,
+        spend,
+        impressions,
+        clicks,
+        conversationsStarted: conversions,
+        ctr,
+        cpc,
+        costPerConversation,
+      });
+    }
+  }
+
+  out.sort((a, b) => b.spend - a.spend);
+  return out.slice(0, maxRows);
 }
 
 export async function getClientsWithMetrics(

@@ -46,6 +46,11 @@ export interface MetaAdInsight {
   frequency: string;
   campaign_id: string;
   campaign_name: string;
+  /** Present when level=ad */
+  ad_id?: string;
+  ad_name?: string;
+  adset_id?: string;
+  adset_name?: string;
 }
 
 export async function fetchMetaCampaigns(accessToken: string, adAccountId: string) {
@@ -92,6 +97,44 @@ export async function fetchMetaInsights(
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     throw new Error(`Meta Insights API error: ${message}`);
+  }
+}
+
+/**
+ * Insights agregados no período por anúncio (nomes de campanha/conjunto/anúncio + métricas).
+ * Usa time_increment=all_days para uma linha por ad no intervalo.
+ */
+export async function fetchMetaAdLevelInsights(
+  accessToken: string,
+  adAccountId: string,
+  dateFrom: string,
+  dateTo: string
+): Promise<MetaAdInsight[]> {
+  const fields = [
+    "campaign_id",
+    "campaign_name",
+    "ad_id",
+    "ad_name",
+    "adset_id",
+    "adset_name",
+    "spend",
+    "impressions",
+    "reach",
+    "clicks",
+    "actions",
+    "action_values",
+    "ctr",
+    "cpc",
+    "cpm",
+    "frequency",
+  ].join(",");
+
+  const url = `${META_BASE_URL}/act_${adAccountId}/insights?fields=${fields}&time_range={"since":"${dateFrom}","until":"${dateTo}"}&time_increment=all_days&level=ad&access_token=${accessToken}&limit=500`;
+  try {
+    return await fetchMetaPaged<MetaAdInsight>(url);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    throw new Error(`Meta Ad-level Insights API error: ${message}`);
   }
 }
 
