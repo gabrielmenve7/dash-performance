@@ -92,7 +92,7 @@ export function AssistantChat({ clientId, clientOptions, hasApiKey }: AssistantC
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Assistente</h1>
           <p className="text-sm text-muted-foreground">
-            Perguntas sobre performance e campanhas do cliente selecionado (contexto: últimos 30 dias).
+            Perguntas sobre performance e campanhas do cliente selecionado (contexto diário conforme histórico sincronizado).
           </p>
         </div>
         <Select value={clientId} onValueChange={onClientChange}>

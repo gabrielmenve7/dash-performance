@@ -118,27 +118,28 @@ export function extractConversions(insight: MetaAdInsight): { conversions: numbe
   let conversions = 0;
   let revenue = 0;
   let leads = 0;
+  let messagingStarted = 0;
 
   if (insight.actions) {
     for (const action of insight.actions) {
       const type = action.action_type;
-      if (type === "offsite_conversion.fb_pixel_purchase" || type === "purchase" || type === "omni_purchase") {
-        conversions += toInt(action.value);
-      }
       if (type === "offsite_conversion.fb_pixel_lead" || type === "lead") {
         const value = toInt(action.value);
         leads += value;
-        conversions += value;
       }
       // Meta registra conversas do WhatsApp/Messenger nesses action_types.
       if (
         type.includes("messaging_conversation_started") ||
         type.includes("onsite_conversion.messaging_conversation_started")
       ) {
-        conversions += toInt(action.value);
+        messagingStarted = Math.max(messagingStarted, toInt(action.value));
       }
     }
   }
+
+  // Usa o maior valor entre action_types de conversa para evitar dupla contagem
+  // quando a Meta retorna múltiplas variações do mesmo evento no mesmo dia.
+  conversions += messagingStarted;
 
   if (insight.action_values) {
     for (const actionValue of insight.action_values) {

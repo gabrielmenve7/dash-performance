@@ -7,7 +7,7 @@ import {
   getDailyMetrics,
   sumMetricsSummaries,
 } from "@/lib/data";
-import { subDays } from "date-fns";
+import { endOfDay, parseISO, startOfDay, subDays } from "date-fns";
 import type { PlatformType } from "@/types";
 
 export async function GET(
@@ -42,8 +42,8 @@ export async function GET(
     );
   }
 
-  const from = new Date(fromStr);
-  const to = new Date(toStr);
+  const from = startOfDay(parseISO(fromStr));
+  const to = endOfDay(parseISO(toStr));
   if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
     return NextResponse.json({ error: "Invalid date" }, { status: 400 });
   }

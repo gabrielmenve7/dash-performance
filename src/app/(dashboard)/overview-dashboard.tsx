@@ -26,13 +26,12 @@ import {
 } from "@/components/ui/table";
 import {
   DollarSign,
-  TrendingUp,
   Target,
   MousePointerClick,
   Eye,
   BarChart3,
 } from "lucide-react";
-import { subDays } from "date-fns";
+import { format as formatDate, subDays } from "date-fns";
 import { toast } from "sonner";
 import type { MetricsSummary, DailyMetric, CampaignWithMetrics } from "@/types";
 
@@ -48,9 +47,6 @@ function objectiveLabel(objective: string) {
   if (isConversationObjective(value)) {
     return "Conversas";
   }
-  if (isPurchaseObjective(value)) {
-    return "Compras";
-  }
   return "Outros objetivos";
 }
 
@@ -62,34 +58,9 @@ function isConversationObjective(raw: string) {
     value.includes("MENSAG") ||
     value.includes("CONVERSA") ||
     value.includes("WHATSAPP") ||
-    value.includes("LEAD") ||
-    value.includes("OUTCOME_LEADS") ||
     value.includes("OUTCOME_ENGAGEMENT") ||
     value.includes("OUTCOME_TRAFFIC")
   );
-}
-
-function isPurchaseObjective(raw: string) {
-  const value = raw.toUpperCase();
-  return (
-    value.includes("SALE") ||
-    value.includes("SALES") ||
-    value.includes("PURCHASE") ||
-    value.includes("COMPRA") ||
-    value.includes("SHOPPING") ||
-    value.includes("OUTCOME_SALES")
-  );
-}
-
-function objectiveGroup(raw: string | null | undefined): "CONVERSAS" | "COMPRAS" | "OUTROS" {
-  const value = (raw ?? "").toUpperCase();
-  if (isConversationObjective(value)) return "CONVERSAS";
-  if (isPurchaseObjective(value)) return "COMPRAS";
-  return "OUTROS";
-}
-
-function hasPurchaseObjective(campaigns: CampaignWithMetrics[]) {
-  return campaigns.some((c) => objectiveGroup(c.objective) === "COMPRAS");
 }
 
 interface OverviewDashboardProps {
@@ -118,36 +89,14 @@ export function OverviewDashboard({
   const [dashPreviousMetrics, setDashPreviousMetrics] = useState(initialPreviousMetrics);
   const [dashDailyData, setDashDailyData] = useState(initialDailyData);
   const [dashCampaigns, setDashCampaigns] = useState(initialCampaigns);
-  const [objective, setObjective] = useState<string>("ALL");
   const [dashLoading, setDashLoading] = useState(false);
   const isInitialMount = useRef(true);
-  const [objectiveOptions, setObjectiveOptions] = useState<string[]>(() =>
-    Array.from(
-      new Set(
-        initialCampaigns
-          .map((c) => c.objective)
-          .filter((o): o is string => Boolean(o))
-          .map((o) => objectiveGroup(o))
-      )
-    ).sort()
-  );
 
   useEffect(() => {
     setDashMetrics(initialMetrics);
     setDashPreviousMetrics(initialPreviousMetrics);
     setDashDailyData(initialDailyData);
     setDashCampaigns(initialCampaigns);
-    setObjective("ALL");
-    setObjectiveOptions(
-      Array.from(
-        new Set(
-          initialCampaigns
-            .map((c) => c.objective)
-            .filter((o): o is string => Boolean(o))
-            .map((o) => objectiveGroup(o))
-        )
-      ).sort()
-    );
     setDateRange({ from: subDays(new Date(), 30), to: new Date() });
     isInitialMount.current = true;
   }, [client.id, initialMetrics, initialPreviousMetrics, initialDailyData, initialCampaigns]);
@@ -160,10 +109,10 @@ export function OverviewDashboard({
 
     const controller = new AbortController();
     const params = new URLSearchParams({
-      from: dateRange.from.toISOString(),
-      to: dateRange.to.toISOString(),
+      from: formatDate(dateRange.from, "yyyy-MM-dd"),
+      to: formatDate(dateRange.to, "yyyy-MM-dd"),
       platform: "ALL",
-      objective,
+      objective: "CONVERSAS",
     });
 
     setDashLoading(true);
@@ -182,17 +131,6 @@ export function OverviewDashboard({
         setDashMetrics(data.metrics);
         setDashDailyData(data.dailyData);
         setDashPreviousMetrics(data.previousMetrics);
-        setObjectiveOptions((prev) =>
-          Array.from(
-            new Set([
-              ...prev,
-              ...data.campaigns
-                .map((c) => c.objective)
-                .filter((o): o is string => Boolean(o))
-                .map((o) => objectiveGroup(o)),
-            ])
-          ).sort()
-        );
       })
       .catch((err) => {
         if (err?.name === "AbortError") return;
@@ -201,7 +139,7 @@ export function OverviewDashboard({
       .finally(() => setDashLoading(false));
 
     return () => controller.abort();
-  }, [client.id, dateRange.from, dateRange.to, objective]);
+  }, [client.id, dateRange.from, dateRange.to]);
 
   function onClientChange(nextId: string) {
     router.push(`/?client=${nextId}`);
@@ -209,8 +147,6 @@ export function OverviewDashboard({
   }
 
   const spendChange = getChangeIndicator(dashMetrics.spend, dashPreviousMetrics.spend);
-  const revenueChange = getChangeIndicator(dashMetrics.revenue, dashPreviousMetrics.revenue);
-  const roasChange = getChangeIndicator(dashMetrics.roas, dashPreviousMetrics.roas);
   const conversionsChange = getChangeIndicator(dashMetrics.conversions, dashPreviousMetrics.conversions);
   const cpaChange = getChangeIndicator(dashMetrics.cpa, dashPreviousMetrics.cpa);
   const cpcChange = getChangeIndicator(dashMetrics.cpc, dashPreviousMetrics.cpc);
@@ -220,10 +156,7 @@ export function OverviewDashboard({
   const ctrChange = getChangeIndicator(dashMetrics.ctr, dashPreviousMetrics.ctr);
 
   const periodLabel = `${dateRange.from.toLocaleDateString("pt-BR")} — ${dateRange.to.toLocaleDateString("pt-BR")}`;
-  const selectedObjectiveGroup = objective === "ALL" ? "ALL" : objective;
-  const showCommerceKpis =
-    selectedObjectiveGroup === "COMPRAS" || (objective === "ALL" && hasPurchaseObjective(dashCampaigns));
-  const conversionTitle = selectedObjectiveGroup === "CONVERSAS" ? "Conversas Iniciadas" : "Conversões";
+  const conversionTitle = "Conversas Iniciadas";
 
   return (
     <div className="space-y-6">
@@ -247,19 +180,7 @@ export function OverviewDashboard({
                 {client.industry}
               </Badge>
             )}
-            <Select value={objective} onValueChange={setObjective}>
-              <SelectTrigger className="w-full sm:w-[220px]">
-                <SelectValue placeholder="Objetivo" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL">Todos os objetivos</SelectItem>
-                {objectiveOptions.map((group) => (
-                  <SelectItem key={group} value={group}>
-                    {group === "CONVERSAS" ? "Conversas" : group === "COMPRAS" ? "Compras" : "Outros objetivos"}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Badge variant="outline" className="w-fit">Objetivo: Conversas</Badge>
           </div>
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Overview</h1>
@@ -291,114 +212,65 @@ export function OverviewDashboard({
           change={conversionsChange.change}
           icon={Target}
         />
-        {showCommerceKpis ? (
-          <>
-            <KpiCard
-              title="Receita Total"
-              value={dashLoading ? "…" : formatCurrency(dashMetrics.revenue)}
-              change={revenueChange.change}
-              icon={TrendingUp}
-            />
-            <KpiCard
-              title="ROAS Médio"
-              value={dashLoading ? "…" : `${dashMetrics.roas.toFixed(2)}x`}
-              change={roasChange.change}
-              icon={BarChart3}
-            />
-          </>
-        ) : (
-          <>
-            <KpiCard
-              title="Cliques"
-              value={dashLoading ? "…" : formatNumber(dashMetrics.clicks)}
-              change={clicksChange.change}
-              icon={MousePointerClick}
-            />
-            <KpiCard
-              title="CTR Médio"
-              value={dashLoading ? "…" : `${dashMetrics.ctr.toFixed(2)}%`}
-              change={ctrChange.change}
-              icon={MousePointerClick}
-            />
-          </>
-        )}
+        <KpiCard
+          title="Cliques"
+          value={dashLoading ? "…" : formatNumber(dashMetrics.clicks)}
+          change={clicksChange.change}
+          icon={MousePointerClick}
+        />
+        <KpiCard
+          title="CTR Médio"
+          value={dashLoading ? "…" : `${dashMetrics.ctr.toFixed(2)}%`}
+          change={ctrChange.change}
+          icon={MousePointerClick}
+        />
       </div>
 
-      {showCommerceKpis ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <KpiCard
-            title="CPA Médio"
-            value={dashLoading ? "…" : formatCurrency(dashMetrics.cpa)}
-            change={cpaChange.change}
-            icon={DollarSign}
-            invertChange
-          />
-          <KpiCard
-            title="Cliques"
-            value={dashLoading ? "…" : formatNumber(dashMetrics.clicks)}
-            change={clicksChange.change}
-            icon={MousePointerClick}
-          />
-          <KpiCard
-            title="Impressões"
-            value={dashLoading ? "…" : formatNumber(dashMetrics.impressions)}
-            change={impressionsChange.change}
-            icon={Eye}
-          />
-          <KpiCard
-            title="CTR Médio"
-            value={dashLoading ? "…" : `${dashMetrics.ctr.toFixed(2)}%`}
-            change={ctrChange.change}
-            icon={MousePointerClick}
-          />
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <KpiCard
-            title="Custo por Conversa"
-            value={dashLoading ? "…" : formatCurrency(dashMetrics.cpa)}
-            change={cpaChange.change}
-            icon={DollarSign}
-            invertChange
-          />
-          <KpiCard
-            title="Impressões"
-            value={dashLoading ? "…" : formatNumber(dashMetrics.impressions)}
-            change={impressionsChange.change}
-            icon={Eye}
-          />
-          <KpiCard
-            title="CPC Médio"
-            value={dashLoading ? "…" : formatCurrency(dashMetrics.cpc)}
-            change={cpcChange.change}
-            icon={MousePointerClick}
-            invertChange
-          />
-          <KpiCard
-            title="CPM Médio"
-            value={dashLoading ? "…" : formatCurrency(dashMetrics.cpm)}
-            change={cpmChange.change}
-            icon={BarChart3}
-            invertChange
-          />
-        </div>
-      )}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <KpiCard
+          title="Custo por Conversa"
+          value={dashLoading ? "…" : formatCurrency(dashMetrics.cpa)}
+          change={cpaChange.change}
+          icon={DollarSign}
+          invertChange
+        />
+        <KpiCard
+          title="Impressões"
+          value={dashLoading ? "…" : formatNumber(dashMetrics.impressions)}
+          change={impressionsChange.change}
+          icon={Eye}
+        />
+        <KpiCard
+          title="CPC Médio"
+          value={dashLoading ? "…" : formatCurrency(dashMetrics.cpc)}
+          change={cpcChange.change}
+          icon={MousePointerClick}
+          invertChange
+        />
+        <KpiCard
+          title="CPM Médio"
+          value={dashLoading ? "…" : formatCurrency(dashMetrics.cpm)}
+          change={cpmChange.change}
+          icon={BarChart3}
+          invertChange
+        />
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <PerformanceChart
           data={dashDailyData}
-          title="Investimento vs Receita"
+          title="Investimento e Conversas Iniciadas"
           metrics={[
             { key: "spend", label: "Investimento", color: "#3b82f6" },
-            { key: "revenue", label: "Receita", color: "#10b981" },
+            { key: "conversions", label: "Conversas Iniciadas", color: "#8b5cf6" },
           ]}
         />
         <PerformanceChart
           data={dashDailyData}
-          title="Conversões e Cliques"
+          title="Cliques e Impressões"
           metrics={[
-            { key: "conversions", label: "Conversões", color: "#8b5cf6" },
             { key: "clicks", label: "Cliques", color: "#f59e0b" },
+            { key: "impressions", label: "Impressões", color: "#10b981" },
           ]}
         />
       </div>
@@ -422,9 +294,7 @@ export function OverviewDashboard({
                   <TableHead>Plataforma</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Investimento</TableHead>
-                  <TableHead className="text-right">Receita</TableHead>
-                  <TableHead className="text-right">ROAS</TableHead>
-                  <TableHead className="text-right">Conversões</TableHead>
+                  <TableHead className="text-right">Conversas Iniciadas</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -452,15 +322,13 @@ export function OverviewDashboard({
                         <Badge variant={status.variant}>{status.label}</Badge>
                       </TableCell>
                       <TableCell className="text-right">{formatCurrency(campaign.metrics.spend)}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(campaign.metrics.revenue)}</TableCell>
-                      <TableCell className="text-right font-medium">{campaign.metrics.roas.toFixed(2)}x</TableCell>
                       <TableCell className="text-right">{formatNumber(campaign.metrics.conversions)}</TableCell>
                     </TableRow>
                   );
                 })}
                 {dashCampaigns.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                    <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
                       Nenhuma campanha no período
                     </TableCell>
                   </TableRow>

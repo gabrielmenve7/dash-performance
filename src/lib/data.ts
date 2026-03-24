@@ -1,3 +1,4 @@
+import { format } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import type { MetricsSummary, ClientWithMetrics, CampaignWithMetrics, DailyMetric, PlatformType } from "@/types";
 
@@ -9,7 +10,6 @@ function objectiveFilter(objective?: string | "ALL"): Record<string, unknown> | 
       OR: [
         { objective: { contains: "message", mode: "insensitive" } },
         { objective: { contains: "messaging", mode: "insensitive" } },
-        { objective: { contains: "lead", mode: "insensitive" } },
         { objective: { contains: "conversa", mode: "insensitive" } },
         { objective: { contains: "whatsapp", mode: "insensitive" } },
         { objective: { contains: "engagement", mode: "insensitive" } },
@@ -37,7 +37,6 @@ function objectiveFilter(objective?: string | "ALL"): Record<string, unknown> | 
             OR: [
               { objective: { contains: "message", mode: "insensitive" } },
               { objective: { contains: "messaging", mode: "insensitive" } },
-              { objective: { contains: "lead", mode: "insensitive" } },
               { objective: { contains: "conversa", mode: "insensitive" } },
               { objective: { contains: "whatsapp", mode: "insensitive" } },
               { objective: { contains: "engagement", mode: "insensitive" } },
@@ -323,7 +322,7 @@ export async function getClientCampaigns(
     }
 
     const dailyData: DailyMetric[] = campaign.metrics.map((m) => ({
-      date: m.date.toISOString().split("T")[0],
+      date: format(m.date, "yyyy-MM-dd"),
       spend: m.spend,
       impressions: m.impressions,
       clicks: m.clicks,
@@ -385,7 +384,7 @@ export async function getDailyMetrics(
 
   const grouped = new Map<string, typeof metrics>();
   for (const m of metrics) {
-    const key = m.date.toISOString().split("T")[0];
+    const key = format(m.date, "yyyy-MM-dd");
     if (!grouped.has(key)) grouped.set(key, []);
     grouped.get(key)!.push(m);
   }

@@ -81,6 +81,8 @@ export async function POST(req: Request) {
     model: openai("gpt-4o-mini"),
     system: [
       "Você é um assistente de performance de mídia paga. Responda em português quando o usuário escrever em português.",
+      "O campo daily contém série diária e conversationsStarted. Para perguntas de período (ex: últimos 7 dias), calcule a partir de daily.",
+      "Se a pergunta for sobre conversas, use conversationsStarted (não confundir com compras).",
       "Use apenas os fatos do JSON abaixo sobre métricas e campanhas deste cliente; se algo não estiver nos dados, diga que não há dado suficiente.",
       "Não invente números. Custos de uso da API OpenAI são por conta de quem opera o painel.",
       "",
