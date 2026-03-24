@@ -12,6 +12,8 @@ function objectiveFilter(objective?: string | "ALL"): Record<string, unknown> | 
         { objective: { contains: "lead", mode: "insensitive" } },
         { objective: { contains: "conversa", mode: "insensitive" } },
         { objective: { contains: "whatsapp", mode: "insensitive" } },
+        { objective: { contains: "engagement", mode: "insensitive" } },
+        { objective: { contains: "traffic", mode: "insensitive" } },
       ],
     };
   }
@@ -38,6 +40,8 @@ function objectiveFilter(objective?: string | "ALL"): Record<string, unknown> | 
               { objective: { contains: "lead", mode: "insensitive" } },
               { objective: { contains: "conversa", mode: "insensitive" } },
               { objective: { contains: "whatsapp", mode: "insensitive" } },
+              { objective: { contains: "engagement", mode: "insensitive" } },
+              { objective: { contains: "traffic", mode: "insensitive" } },
               { objective: { contains: "sale", mode: "insensitive" } },
               { objective: { contains: "purchase", mode: "insensitive" } },
               { objective: { contains: "shopping", mode: "insensitive" } },

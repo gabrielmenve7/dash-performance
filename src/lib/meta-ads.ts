@@ -1,6 +1,36 @@
 const META_API_VERSION = "v21.0";
 const META_BASE_URL = `https://graph.facebook.com/${META_API_VERSION}`;
 
+interface MetaPage<T> {
+  data?: T[];
+  paging?: { next?: string };
+  error?: { message?: string };
+}
+
+async function fetchMetaPaged<T>(initialUrl: string): Promise<T[]> {
+  const results: T[] = [];
+  let nextUrl: string | undefined = initialUrl;
+
+  while (nextUrl) {
+    const response = await fetch(nextUrl);
+    if (!response.ok) {
+      const errBody = await response.json().catch(() => ({}));
+      const msg =
+        (errBody as { error?: { message?: string } }).error?.message ||
+        `${response.status} ${response.statusText}`;
+      throw new Error(`Meta API error: ${msg}`);
+    }
+
+    const page = (await response.json()) as MetaPage<T>;
+    if (Array.isArray(page.data)) {
+      results.push(...page.data);
+    }
+    nextUrl = page.paging?.next;
+  }
+
+  return results;
+}
+
 export interface MetaAdInsight {
   date_start: string;
   date_stop: string;
@@ -21,19 +51,7 @@ export interface MetaAdInsight {
 export async function fetchMetaCampaigns(accessToken: string, adAccountId: string) {
   const effectiveStatuses = JSON.stringify(["ACTIVE", "PAUSED", "ARCHIVED"]);
   const url = `${META_BASE_URL}/act_${adAccountId}/campaigns?fields=id,name,status,objective,daily_budget,lifetime_budget,start_time,stop_time&effective_status=${encodeURIComponent(effectiveStatuses)}&access_token=${accessToken}&limit=500`;
-
-  const response = await fetch(url);
-  if (!response.ok) {
-    const errBody = await response.json().catch(() => ({}));
-    const msg =
-      (errBody as { error?: { message?: string } }).error?.message ||
-      `${response.status} ${response.statusText}`;
-    throw new Error(`Meta API error: ${msg}`);
-  }
-
-  const data = await response.json();
-  const rows = Array.isArray(data.data) ? data.data : [];
-  return rows as {
+  const rows = await fetchMetaPaged<{
     id: string;
     name: string;
     status: string;
@@ -42,7 +60,9 @@ export async function fetchMetaCampaigns(accessToken: string, adAccountId: strin
     lifetime_budget?: string;
     start_time?: string;
     stop_time?: string;
-  }[];
+  }>(url);
+
+  return rows;
 }
 
 export async function fetchMetaInsights(
@@ -67,17 +87,12 @@ export async function fetchMetaInsights(
   ].join(",");
 
   const url = `${META_BASE_URL}/act_${adAccountId}/insights?fields=${fields}&time_range={"since":"${dateFrom}","until":"${dateTo}"}&time_increment=1&level=campaign&access_token=${accessToken}&limit=500`;
-
-  const response = await fetch(url);
-  if (!response.ok) {
-    const errBody = await response.json().catch(() => ({}));
-    const msg =
-      (errBody as { error?: { message?: string } }).error?.message || String(response.status);
-    throw new Error(`Meta Insights API error: ${msg}`);
+  try {
+    return await fetchMetaPaged<MetaAdInsight>(url);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    throw new Error(`Meta Insights API error: ${message}`);
   }
-
-  const data = await response.json();
-  return (Array.isArray(data.data) ? data.data : []) as MetaAdInsight[];
 }
 
 export function parseMetaStatus(status: string): string {
@@ -91,20 +106,36 @@ export function parseMetaStatus(status: string): string {
 }
 
 export function extractConversions(insight: MetaAdInsight): { conversions: number; revenue: number; leads: number } {
+  const toInt = (value: string | undefined) => {
+    const n = parseInt(value ?? "", 10);
+    return Number.isFinite(n) ? n : 0;
+  };
+  const toFloat = (value: string | undefined) => {
+    const n = parseFloat(value ?? "");
+    return Number.isFinite(n) ? n : 0;
+  };
+
   let conversions = 0;
   let revenue = 0;
   let leads = 0;
 
   if (insight.actions) {
     for (const action of insight.actions) {
-      if (action.action_type === "offsite_conversion.fb_pixel_purchase") {
-        conversions += parseInt(action.value, 10);
+      const type = action.action_type;
+      if (type === "offsite_conversion.fb_pixel_purchase" || type === "purchase" || type === "omni_purchase") {
+        conversions += toInt(action.value);
       }
-      if (action.action_type === "offsite_conversion.fb_pixel_lead" || action.action_type === "lead") {
-        leads += parseInt(action.value, 10);
+      if (type === "offsite_conversion.fb_pixel_lead" || type === "lead") {
+        const value = toInt(action.value);
+        leads += value;
+        conversions += value;
       }
-      if (action.action_type === "purchase" || action.action_type === "omni_purchase") {
-        conversions += parseInt(action.value, 10);
+      // Meta registra conversas do WhatsApp/Messenger nesses action_types.
+      if (
+        type.includes("messaging_conversation_started") ||
+        type.includes("onsite_conversion.messaging_conversation_started")
+      ) {
+        conversions += toInt(action.value);
       }
     }
   }
@@ -116,7 +147,7 @@ export function extractConversions(insight: MetaAdInsight): { conversions: numbe
         actionValue.action_type === "purchase" ||
         actionValue.action_type === "omni_purchase"
       ) {
-        revenue += parseFloat(actionValue.value);
+        revenue += toFloat(actionValue.value);
       }
     }
   }

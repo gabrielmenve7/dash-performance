@@ -63,7 +63,9 @@ function isConversationObjective(raw: string) {
     value.includes("CONVERSA") ||
     value.includes("WHATSAPP") ||
     value.includes("LEAD") ||
-    value.includes("OUTCOME_LEADS")
+    value.includes("OUTCOME_LEADS") ||
+    value.includes("OUTCOME_ENGAGEMENT") ||
+    value.includes("OUTCOME_TRAFFIC")
   );
 }
 
