@@ -15,7 +15,8 @@ export async function middleware(req: NextRequest) {
 
   if (isApiAuth) return NextResponse.next();
 
-  if (req.nextUrl.pathname === "/api/health") {
+  // Público: diagnóstico (matcher também exclui api/health para não retornar 401)
+  if (req.nextUrl.pathname === "/api/health" || req.nextUrl.pathname.startsWith("/api/health/")) {
     return NextResponse.next();
   }
 
@@ -46,5 +47,7 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|api/health).*)",
+  ],
 };
