@@ -33,7 +33,6 @@ export default async function AssistantPage({ searchParams }: Props) {
     <AssistantChat
       key={clientId}
       clientId={clientId}
-      clientOptions={clients}
       hasApiKey={hasApiKey}
     />
   );

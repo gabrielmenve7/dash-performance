@@ -11,9 +11,23 @@ export const maxDuration = 60;
 const bodySchema = z.object({
   clientId: z.string().min(1),
   messages: z.array(z.unknown()).min(1),
+  attachments: z
+    .array(
+      z.object({
+        id: z.string().optional(),
+        name: z.string().min(1).max(200),
+        type: z.string().min(1).max(120),
+        size: z.number().int().nonnegative().max(8 * 1024 * 1024),
+        extractedText: z.string().max(8000).optional(),
+      })
+    )
+    .max(8)
+    .optional()
+    .default([]),
 });
 
 const MAX_MESSAGES = 20;
+const MAX_TOTAL_EXTRACTED_TEXT = 32000;
 
 export async function POST(req: Request) {
   const session = await auth();
@@ -43,10 +57,18 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const { clientId } = parsed.data;
+  const { clientId, attachments } = parsed.data;
   const client = await getActiveClientById(clientId);
   if (!client) {
     return NextResponse.json({ error: "Invalid client" }, { status: 400 });
+  }
+
+  const extractedTextTotal = attachments.reduce((acc, a) => acc + (a.extractedText?.length ?? 0), 0);
+  if (extractedTextTotal > MAX_TOTAL_EXTRACTED_TEXT) {
+    return NextResponse.json(
+      { error: "Attachments extracted text exceeds maximum allowed size" },
+      { status: 400 }
+    );
   }
 
   const uiMessages = parsed.data.messages.slice(-MAX_MESSAGES) as UIMessage[];
@@ -91,6 +113,16 @@ export async function POST(req: Request) {
       "",
       "Contexto (JSON):",
       context,
+      "",
+      "Anexos recebidos nesta mensagem (JSON):",
+      JSON.stringify(
+        attachments.map((a) => ({
+          name: a.name,
+          type: a.type,
+          size: a.size,
+          extractedText: a.extractedText ?? null,
+        }))
+      ),
     ].join("\n"),
     messages: modelMessages,
     maxOutputTokens: 2048,
