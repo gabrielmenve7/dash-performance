@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,20 +24,64 @@ export default function LoginPage() {
     setLoading(true);
 
     const formData = new FormData(e.currentTarget);
-    const email = formData.get("email") as string;
+    const email = (formData.get("email") as string).trim();
     const password = formData.get("password") as string;
     const origin = window.location.origin;
+    const callbackUrl = `${origin}/`;
 
     try {
-      // redirect: true = NextAuth define window.location (evita bugs de result.ok no cliente)
-      await signIn("credentials", {
+      // Fluxo explícito (mesmo contrato do next-auth/react), evita signIn() que em alguns browsers não redireciona.
+      const csrfRes = await fetch(`${origin}/api/auth/csrf`, {
+        credentials: "include",
+      });
+      if (!csrfRes.ok) {
+        throw new Error("csrf");
+      }
+      const csrfJson = (await csrfRes.json()) as { csrfToken?: string };
+      const csrfToken = csrfJson.csrfToken;
+      if (!csrfToken) {
+        throw new Error("csrf");
+      }
+
+      const body = new URLSearchParams({
+        csrfToken,
         email,
         password,
-        callbackUrl: `${origin}/`,
+        callbackUrl,
       });
+
+      const res = await fetch(`${origin}/api/auth/callback/credentials`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "X-Auth-Return-Redirect": "1",
+        },
+        body,
+        credentials: "include",
+      });
+
+      const raw = await res.text();
+      let data: { url?: string } = {};
+      try {
+        data = JSON.parse(raw) as { url?: string };
+      } catch {
+        /* ignore */
+      }
+
+      const redirectUrl = data.url;
+      if (res.ok && redirectUrl) {
+        if (redirectUrl.includes("error=CredentialsSignin")) {
+          toast.error("Email ou senha incorretos.");
+          return;
+        }
+        window.location.assign(redirectUrl);
+        return;
+      }
+
+      toast.error("Email ou senha incorretos.");
     } catch {
       toast.error(
-        "Erro ao entrar. Abra /api/health no site: se database não for connected, ajuste DATABASE_URL na Vercel."
+        "Não foi possível conectar ao servidor de login. Confira a rede e /api/health."
       );
     } finally {
       setLoading(false);
