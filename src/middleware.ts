@@ -15,6 +15,10 @@ export async function middleware(req: NextRequest) {
 
   if (isApiAuth) return NextResponse.next();
 
+  if (req.nextUrl.pathname === "/api/health") {
+    return NextResponse.next();
+  }
+
   // GET: Vercel Cron (Bearer CRON_SECRET). POST: session checked in the route.
   if (req.nextUrl.pathname === "/api/sync") {
     return NextResponse.next();

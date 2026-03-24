@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,14 @@ import { toast } from "sonner";
 export default function LoginPage() {
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    if (q.get("error") === "CredentialsSignin") {
+      toast.error("Email ou senha incorretos.");
+      window.history.replaceState({}, "", "/login");
+    }
+  }, []);
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
@@ -19,27 +27,18 @@ export default function LoginPage() {
     const formData = new FormData(e.currentTarget);
     const email = formData.get("email") as string;
     const password = formData.get("password") as string;
+    const origin = window.location.origin;
 
     try {
-      const origin =
-        typeof window !== "undefined" ? window.location.origin : "";
-      const result = await signIn("credentials", {
+      // redirect: true = NextAuth define window.location (evita bugs de result.ok no cliente)
+      await signIn("credentials", {
         email,
         password,
-        redirect: false,
         callbackUrl: `${origin}/`,
       });
-
-      if (!result || result.error || !result.ok) {
-        toast.error("Email ou senha incorretos");
-        return;
-      }
-
-      // Navegação completa: garante cookie de sessão antes do middleware em /
-      window.location.href = "/";
     } catch {
       toast.error(
-        "Não foi possível entrar. Confira NEXTAUTH_URL na Vercel e se a DATABASE_URL do Neon não usa channel_binding=require (remova esse parâmetro)."
+        "Erro ao entrar. Abra /api/health no site: se database não for connected, ajuste DATABASE_URL na Vercel."
       );
     } finally {
       setLoading(false);
