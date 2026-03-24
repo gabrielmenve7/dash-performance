@@ -25,9 +25,11 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
+  // Em HTTPS (Vercel) o cookie de sessão é __Secure-authjs.session-token; sem secureCookie: true o getToken falha e o usuário volta ao /login em loop.
   const token = await getToken({
     req,
-    secret: process.env.NEXTAUTH_SECRET,
+    secret: process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET,
+    secureCookie: req.nextUrl.protocol === "https:",
   });
 
   const isLoggedIn = !!token;

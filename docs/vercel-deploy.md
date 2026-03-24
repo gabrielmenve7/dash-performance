@@ -77,3 +77,5 @@ curl -s -H "Authorization: Bearer SEU_CRON_SECRET" http://localhost:3000/api/syn
 4. No DevTools → **Application** → **Cookies**, apague cookies do domínio e tente de novo.
 
 O backend de auth responde certo se `POST /api/auth/callback/credentials` retornar **200** com cookie de sessão após senha válida.
+
+Em **HTTPS**, o cookie de sessão chama-se `__Secure-authjs.session-token`. O middleware usa `getToken({ secureCookie: true })` nesse caso; sem isso o login parece “não entrar” (volta ao `/login`).
