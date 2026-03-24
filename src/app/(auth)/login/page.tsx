@@ -22,20 +22,25 @@ export default function LoginPage() {
     const email = formData.get("email") as string;
     const password = formData.get("password") as string;
 
-    const result = await signIn("credentials", {
-      email,
-      password,
-      redirect: false,
-    });
+    try {
+      const result = await signIn("credentials", {
+        email,
+        password,
+        redirect: false,
+      });
 
-    if (result?.error) {
-      toast.error("Email ou senha incorretos");
+      if (result?.error) {
+        toast.error("Email ou senha incorretos");
+        return;
+      }
+
+      router.push("/");
+      router.refresh();
+    } catch {
+      toast.error("Não foi possível entrar. Verifique a conexão e as variáveis na Vercel (NEXTAUTH_URL, DATABASE_URL).");
+    } finally {
       setLoading(false);
-      return;
     }
-
-    router.push("/");
-    router.refresh();
   }
 
   return (
