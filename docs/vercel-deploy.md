@@ -15,7 +15,7 @@ Em **Project → Settings → Environment Variables**, para o ambiente **Product
 
 | Variável | Observação |
 |----------|------------|
-| `DATABASE_URL` | Connection string Postgres acessível da internet (ex.: Neon). Permita IPs da Vercel ou “allow all”, conforme o provedor. |
+| `DATABASE_URL` | Connection string Postgres (Neon). Prefira o host **pooler** (`-pooler`). Se o login na Vercel falhar ou demorar, **remova** `channel_binding=require` da URL (Prisma costuma falhar com isso). |
 | `NEXTAUTH_SECRET` | Gere um valor novo e forte em produção (`openssl rand -base64 32`). Não reutilize placeholder de desenvolvimento. |
 | `NEXTAUTH_URL` | URL **exata** que o usuário usa no navegador, com **https** e **sem** barra final (ex.: `https://seu-projeto.vercel.app`). O código usa `trustHost` para produção na Vercel. |
 | `CRON_SECRET` | Obrigatório para o cron da Vercel chamar `/api/sync` com segurança (string aleatória ≥ 16 caracteres). A Vercel envia `Authorization: Bearer <CRON_SECRET>` automaticamente quando esta variável existe. |

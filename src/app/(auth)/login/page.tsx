@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,7 +10,6 @@ import { BarChart3, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 export default function LoginPage() {
-  const router = useRouter();
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -29,15 +27,17 @@ export default function LoginPage() {
         redirect: false,
       });
 
-      if (result?.error) {
+      if (!result || result.error || !result.ok) {
         toast.error("Email ou senha incorretos");
         return;
       }
 
-      router.push("/");
-      router.refresh();
+      // Navegação completa: garante cookie de sessão antes do middleware em /
+      window.location.href = "/";
     } catch {
-      toast.error("Não foi possível entrar. Verifique a conexão e as variáveis na Vercel (NEXTAUTH_URL, DATABASE_URL).");
+      toast.error(
+        "Não foi possível entrar. Confira NEXTAUTH_URL na Vercel e se a DATABASE_URL do Neon não usa channel_binding=require (remova esse parâmetro)."
+      );
     } finally {
       setLoading(false);
     }
