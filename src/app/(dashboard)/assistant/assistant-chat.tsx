@@ -5,7 +5,7 @@ import { DefaultChatTransport } from "ai";
 import { useMemo, useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { FileUp, Mic, Paperclip, Send, Square, X } from "lucide-react";
+import { FileUp, Paperclip, Send, Square, X } from "lucide-react";
 import { toast } from "sonner";
 
 interface AssistantChatProps {
@@ -21,33 +21,6 @@ interface AttachmentDraft {
   extractedText?: string;
 }
 
-interface SpeechRecognitionLike {
-  lang: string;
-  continuous: boolean;
-  interimResults: boolean;
-  onresult: ((event: SpeechRecognitionResultEventLike) => void) | null;
-  onerror: ((event: Event) => void) | null;
-  onend: (() => void) | null;
-  start(): void;
-  stop(): void;
-}
-
-interface SpeechRecognitionCtor {
-  new (): SpeechRecognitionLike;
-}
-
-interface SpeechRecognitionResultEventLike {
-  resultIndex: number;
-  results: ArrayLike<ArrayLike<{ transcript: string }>>;
-}
-
-declare global {
-  interface Window {
-    webkitSpeechRecognition?: SpeechRecognitionCtor;
-    SpeechRecognition?: SpeechRecognitionCtor;
-  }
-}
-
 function textFromParts(parts: { type: string; text?: string }[]): string {
   return parts
     .filter((p): p is { type: "text"; text: string } => p.type === "text" && typeof p.text === "string")
@@ -59,6 +32,18 @@ const MAX_ATTACHMENTS = 8;
 const MAX_FILE_SIZE = 8 * 1024 * 1024;
 const MAX_TOTAL_EXTRACTED_TEXT = 32000;
 const MAX_EXTRACT_PER_FILE = 8000;
+const TYPE_SPEED_MS = 45;
+const DELETE_SPEED_MS = 24;
+const HOLD_FULL_MS = 1300;
+const HOLD_EMPTY_MS = 320;
+
+const EXAMPLE_PROMPTS = [
+  "Qual campanha teve melhor custo por conversa nos últimos 7 dias?",
+  "Onde estamos perdendo orçamento sem gerar conversas?",
+  "Quais anúncios devo pausar hoje para melhorar performance?",
+  "Compare os últimos 7 dias vs. 7 dias anteriores.",
+  "Quais são os principais pontos fracos das campanhas ativas?",
+];
 
 const ALLOWED_EXTENSIONS = [
   ".txt",
@@ -103,11 +88,12 @@ async function extractTextIfSupported(file: File): Promise<string | undefined> {
 export function AssistantChat({ clientId, hasApiKey }: AssistantChatProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const composerInputRef = useRef<HTMLTextAreaElement>(null);
 
   const [attachments, setAttachments] = useState<AttachmentDraft[]>([]);
-  const [listening, setListening] = useState(false);
-  const [voiceSupported, setVoiceSupported] = useState(false);
+  const [animatedPrompt, setAnimatedPrompt] = useState("");
+  const [promptIndex, setPromptIndex] = useState(0);
+  const [isDeletingPrompt, setIsDeletingPrompt] = useState(false);
   const transport = useMemo(
     () =>
       new DefaultChatTransport({
@@ -132,12 +118,8 @@ export function AssistantChat({ clientId, hasApiKey }: AssistantChatProps) {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, status]);
 
-  useEffect(() => {
-    const SpeechRecognitionClass = window.SpeechRecognition || window.webkitSpeechRecognition;
-    setVoiceSupported(Boolean(SpeechRecognitionClass));
-  }, []);
-
   const busy = status === "streaming" || status === "submitted";
+  const shouldAnimatePrompt = hasApiKey && !busy && input.trim().length === 0;
 
   const last = messages[messages.length - 1];
   const lastAssistantText =
@@ -147,6 +129,53 @@ export function AssistantChat({ clientId, hasApiKey }: AssistantChatProps) {
     (messages.length === 0 ||
       last?.role === "user" ||
       (last?.role === "assistant" && !lastAssistantText));
+
+  useEffect(() => {
+    if (!shouldAnimatePrompt) {
+      return;
+    }
+
+    const fullText = EXAMPLE_PROMPTS[promptIndex];
+    const atFullText = animatedPrompt === fullText;
+    const atEmpty = animatedPrompt.length === 0;
+
+    const delay = isDeletingPrompt
+      ? DELETE_SPEED_MS
+      : atFullText
+        ? HOLD_FULL_MS
+        : atEmpty
+          ? HOLD_EMPTY_MS
+          : TYPE_SPEED_MS;
+
+    const timer = window.setTimeout(() => {
+      if (!isDeletingPrompt && !atFullText) {
+        setAnimatedPrompt(fullText.slice(0, animatedPrompt.length + 1));
+        return;
+      }
+
+      if (!isDeletingPrompt && atFullText) {
+        setIsDeletingPrompt(true);
+        return;
+      }
+
+      if (isDeletingPrompt && !atEmpty) {
+        setAnimatedPrompt(fullText.slice(0, animatedPrompt.length - 1));
+        return;
+      }
+
+      setIsDeletingPrompt(false);
+      setPromptIndex((prev) => (prev + 1) % EXAMPLE_PROMPTS.length);
+    }, delay);
+
+    return () => window.clearTimeout(timer);
+  }, [animatedPrompt, isDeletingPrompt, promptIndex, shouldAnimatePrompt]);
+
+  useEffect(() => {
+    if (input.trim().length > 0) {
+      setAnimatedPrompt("");
+      setIsDeletingPrompt(false);
+    }
+  }, [input]);
 
   async function onFilesSelected(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
@@ -186,38 +215,6 @@ export function AssistantChat({ clientId, hasApiKey }: AssistantChatProps) {
 
   function clearAttachments() {
     setAttachments([]);
-  }
-
-  function toggleVoice() {
-    if (listening) {
-      recognitionRef.current?.stop();
-      setListening(false);
-      return;
-    }
-    const SpeechRecognitionClass = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognitionClass) {
-      toast.error("Reconhecimento de voz não suportado neste navegador.");
-      return;
-    }
-    const recognition = new SpeechRecognitionClass();
-    recognition.lang = "pt-BR";
-    recognition.continuous = false;
-    recognition.interimResults = true;
-    recognition.onresult = (event) => {
-      let text = "";
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        text += event.results[i][0].transcript;
-      }
-      setInput((prev) => (prev ? `${prev} ${text}` : text));
-    };
-    recognition.onerror = () => {
-      toast.error("Não foi possível capturar o áudio.");
-      setListening(false);
-    };
-    recognition.onend = () => setListening(false);
-    recognitionRef.current = recognition;
-    recognition.start();
-    setListening(true);
   }
 
   async function submitMessage() {
@@ -294,19 +291,36 @@ export function AssistantChat({ clientId, hasApiKey }: AssistantChatProps) {
 
         {messages.length === 0 && (
           <div className="flex-1 flex items-center justify-center px-4">
-            <h1 className="text-3xl sm:text-4xl tracking-tight text-foreground/95 text-center">
-              O que quer fazer hoje?
-            </h1>
+            <div className="w-full max-w-3xl space-y-6">
+              <h1 className="text-3xl sm:text-4xl tracking-tight text-foreground/95 text-center">
+                O que quer fazer hoje?
+              </h1>
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                {EXAMPLE_PROMPTS.slice(0, 4).map((example) => (
+                  <button
+                    key={example}
+                    type="button"
+                    className="rounded-full border border-border/70 bg-background/60 px-3 py-1.5 text-xs text-muted-foreground transition hover:text-foreground hover:border-border"
+                    onClick={() => {
+                      setInput(example);
+                      composerInputRef.current?.focus();
+                    }}
+                  >
+                    {example}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         )}
 
-        <div className="absolute inset-x-0 bottom-6 px-4">
+        <div className="absolute inset-x-0 bottom-10 px-4">
           <form
             onSubmit={onFormSubmit}
-            className="mx-auto max-w-3xl rounded-3xl border border-border/70 bg-background/85 backdrop-blur-md shadow-xl"
+            className="mx-auto max-w-3xl rounded-2xl border border-border/70 bg-background/85 backdrop-blur-md shadow-xl"
           >
             {attachments.length > 0 && (
-              <div className="px-4 pt-3 pb-2 flex flex-wrap items-center gap-2 border-b border-border/60">
+              <div className="px-3 pt-2.5 pb-2 flex flex-wrap items-center gap-2 border-b border-border/60">
                 {attachments.map((a) => (
                   <span
                     key={a.id}
@@ -334,7 +348,7 @@ export function AssistantChat({ clientId, hasApiKey }: AssistantChatProps) {
               </div>
             )}
 
-            <div className="flex items-end gap-2 p-3">
+            <div className="flex items-center gap-2 p-2">
               <input
                 ref={fileInputRef}
                 type="file"
@@ -348,14 +362,15 @@ export function AssistantChat({ clientId, hasApiKey }: AssistantChatProps) {
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="rounded-full"
+                className="rounded-full h-8 w-8"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={busy}
               >
-                <Paperclip className="w-4 h-4" />
+                <Paperclip className="w-3.5 h-3.5" />
               </Button>
 
               <textarea
+                ref={composerInputRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => {
@@ -366,44 +381,34 @@ export function AssistantChat({ clientId, hasApiKey }: AssistantChatProps) {
                 }}
                 placeholder={
                   hasApiKey
-                    ? "Pergunte qualquer coisa"
+                    ? (shouldAnimatePrompt
+                        ? `${animatedPrompt}${isDeletingPrompt ? "" : "\u258c"}`
+                        : "Pergunte qualquer coisa")
                     : "IA desativada até configurar a chave"
                 }
                 disabled={!hasApiKey || busy}
-                rows={2}
-                className="flex-1 resize-none bg-transparent px-2 py-2 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                rows={1}
+                className="flex-1 resize-none bg-transparent px-1 py-1.5 text-sm leading-5 outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
               />
-
-              <Button
-                type="button"
-                variant={listening ? "default" : "ghost"}
-                size="icon"
-                className="rounded-full"
-                onClick={toggleVoice}
-                disabled={!voiceSupported || busy}
-                title={voiceSupported ? "Gravar voz" : "Voz não suportada"}
-              >
-                <Mic className="w-4 h-4" />
-              </Button>
 
               {busy ? (
                 <Button
                   type="button"
                   variant="secondary"
                   size="icon"
-                  className="rounded-full"
+                  className="rounded-full h-8 w-8"
                   onClick={() => void stop()}
                 >
-                  <Square className="w-4 h-4" />
+                  <Square className="w-3.5 h-3.5" />
                 </Button>
               ) : (
                 <Button
                   type="submit"
                   size="icon"
-                  className="rounded-full"
+                  className="rounded-full h-8 w-8"
                   disabled={!hasApiKey || !input.trim()}
                 >
-                  <Send className="w-4 h-4" />
+                  <Send className="w-3.5 h-3.5" />
                 </Button>
               )}
             </div>
