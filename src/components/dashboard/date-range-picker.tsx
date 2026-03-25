@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Calendar, ChevronDown } from "lucide-react";
 import {
@@ -10,7 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { subDays, startOfMonth, endOfMonth, subMonths, format } from "date-fns";
+import { subDays, startOfMonth, endOfMonth, subMonths, format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 interface DateRangePickerProps {
@@ -20,6 +20,8 @@ interface DateRangePickerProps {
 }
 
 const presets = [
+  { label: "Hoje", getValue: () => ({ from: new Date(), to: new Date() }) },
+  { label: "Ontem", getValue: () => ({ from: subDays(new Date(), 1), to: subDays(new Date(), 1) }) },
   { label: "Últimos 7 dias", getValue: () => ({ from: subDays(new Date(), 7), to: new Date() }) },
   { label: "Últimos 14 dias", getValue: () => ({ from: subDays(new Date(), 14), to: new Date() }) },
   { label: "Últimos 30 dias", getValue: () => ({ from: subDays(new Date(), 30), to: new Date() }) },
@@ -38,6 +40,18 @@ const presets = [
 
 export function DateRangePicker({ from, to, onChange }: DateRangePickerProps) {
   const [label, setLabel] = useState("Últimos 30 dias");
+  const fromIso = useMemo(() => format(from, "yyyy-MM-dd"), [from]);
+  const toIso = useMemo(() => format(to, "yyyy-MM-dd"), [to]);
+  const [customFrom, setCustomFrom] = useState(fromIso);
+  const [customTo, setCustomTo] = useState(toIso);
+
+  function applyCustomRange() {
+    const f = parseISO(customFrom);
+    const t = parseISO(customTo);
+    if (Number.isNaN(f.getTime()) || Number.isNaN(t.getTime())) return;
+    setLabel("Personalizado");
+    onChange(f, t);
+  }
 
   return (
     <DropdownMenu>
@@ -58,12 +72,35 @@ export function DateRangePicker({ from, to, onChange }: DateRangePickerProps) {
             onClick={() => {
               const { from: f, to: t } = preset.getValue();
               setLabel(preset.label);
+              setCustomFrom(format(f, "yyyy-MM-dd"));
+              setCustomTo(format(t, "yyyy-MM-dd"));
               onChange(f, t);
             }}
           >
             {preset.label}
           </DropdownMenuItem>
         ))}
+        <DropdownMenuSeparator />
+        <div className="px-2 py-2 space-y-2">
+          <div className="text-xs font-medium text-foreground">Personalizado</div>
+          <div className="grid grid-cols-1 gap-2">
+            <input
+              type="date"
+              value={customFrom}
+              onChange={(e) => setCustomFrom(e.target.value)}
+              className="w-full rounded-md border border-input bg-background px-2 py-1 text-xs"
+            />
+            <input
+              type="date"
+              value={customTo}
+              onChange={(e) => setCustomTo(e.target.value)}
+              className="w-full rounded-md border border-input bg-background px-2 py-1 text-xs"
+            />
+            <Button type="button" size="sm" className="w-full h-8" onClick={applyCustomRange}>
+              Aplicar
+            </Button>
+          </div>
+        </div>
         <DropdownMenuSeparator />
         <div className="px-2 py-1.5 text-xs text-muted-foreground">
           {format(from, "dd/MM/yyyy", { locale: ptBR })} - {format(to, "dd/MM/yyyy", { locale: ptBR })}
