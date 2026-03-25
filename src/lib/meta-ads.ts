@@ -148,7 +148,12 @@ export function parseMetaStatus(status: string): string {
   return map[status] || "PAUSED";
 }
 
-export function extractConversions(insight: MetaAdInsight): { conversions: number; revenue: number; leads: number } {
+export function extractConversions(insight: MetaAdInsight): {
+  conversationsStarted: number;
+  purchases: number;
+  revenue: number;
+  leads: number;
+} {
   const toInt = (value: string | undefined) => {
     const n = parseInt(value ?? "", 10);
     return Number.isFinite(n) ? n : 0;
@@ -158,10 +163,11 @@ export function extractConversions(insight: MetaAdInsight): { conversions: numbe
     return Number.isFinite(n) ? n : 0;
   };
 
-  let conversions = 0;
+  let conversationsStarted = 0;
   let revenue = 0;
   let leads = 0;
   let messagingStarted = 0;
+  let purchases = 0;
 
   if (insight.actions) {
     for (const action of insight.actions) {
@@ -177,12 +183,21 @@ export function extractConversions(insight: MetaAdInsight): { conversions: numbe
       ) {
         messagingStarted = Math.max(messagingStarted, toInt(action.value));
       }
+
+      // Compras no site (Pixel/Omni) — usado apenas no filtro de vendas/compras.
+      if (
+        type === "purchase" ||
+        type === "offsite_conversion.fb_pixel_purchase" ||
+        type === "omni_purchase"
+      ) {
+        purchases = Math.max(purchases, toInt(action.value));
+      }
     }
   }
 
   // Usa o maior valor entre action_types de conversa para evitar dupla contagem
   // quando a Meta retorna múltiplas variações do mesmo evento no mesmo dia.
-  conversions += messagingStarted;
+  conversationsStarted += messagingStarted;
 
   if (insight.action_values) {
     for (const actionValue of insight.action_values) {
@@ -196,5 +211,5 @@ export function extractConversions(insight: MetaAdInsight): { conversions: numbe
     }
   }
 
-  return { conversions, revenue, leads };
+  return { conversationsStarted, purchases, revenue, leads };
 }

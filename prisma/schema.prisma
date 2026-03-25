@@ -122,6 +122,7 @@ model CampaignMetrics {
   reach        Int      @default(0)
   clicks       Int      @default(0)
   conversions  Int      @default(0)
+  purchases    Int      @default(0)
   revenue      Float    @default(0)
   leads        Int      @default(0)
   ctr          Float    @default(0)

@@ -33,6 +33,7 @@ export default async function CampaignDetailPage({ params }: Props) {
     impressions: m.impressions,
     clicks: m.clicks,
     conversions: m.conversions,
+    purchases: m.purchases,
     revenue: m.revenue,
     ctr: m.ctr,
     cpc: m.cpc,
@@ -46,10 +47,11 @@ export default async function CampaignDetailPage({ params }: Props) {
       reach: acc.reach + m.reach,
       clicks: acc.clicks + m.clicks,
       conversions: acc.conversions + m.conversions,
+      purchases: acc.purchases + m.purchases,
       revenue: acc.revenue + m.revenue,
       leads: acc.leads + m.leads,
     }),
-    { spend: 0, impressions: 0, reach: 0, clicks: 0, conversions: 0, revenue: 0, leads: 0 }
+    { spend: 0, impressions: 0, reach: 0, clicks: 0, conversions: 0, purchases: 0, revenue: 0, leads: 0 }
   );
 
   const metrics = {

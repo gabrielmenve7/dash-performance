@@ -57,10 +57,10 @@ function objectiveFilter(objective?: string | "ALL"): Record<string, unknown> | 
 }
 
 function aggregateMetrics(
-  metrics: { spend: number; impressions: number; reach: number; clicks: number; conversions: number; revenue: number; leads: number; ctr: number; cpc: number; cpm: number; cpa: number; roas: number; frequency: number }[]
+  metrics: { spend: number; impressions: number; reach: number; clicks: number; conversions: number; purchases?: number; revenue: number; leads: number; ctr: number; cpc: number; cpm: number; cpa: number; roas: number; frequency: number }[]
 ): MetricsSummary {
   if (metrics.length === 0) {
-    return { spend: 0, impressions: 0, reach: 0, clicks: 0, conversions: 0, revenue: 0, leads: 0, ctr: 0, cpc: 0, cpm: 0, cpa: 0, roas: 0, frequency: 0 };
+    return { spend: 0, impressions: 0, reach: 0, clicks: 0, conversions: 0, purchases: 0, revenue: 0, leads: 0, ctr: 0, cpc: 0, cpm: 0, cpa: 0, roas: 0, frequency: 0 };
   }
 
   const totals = metrics.reduce(
@@ -70,10 +70,11 @@ function aggregateMetrics(
       reach: acc.reach + m.reach,
       clicks: acc.clicks + m.clicks,
       conversions: acc.conversions + m.conversions,
+      purchases: acc.purchases + (m.purchases ?? 0),
       revenue: acc.revenue + m.revenue,
       leads: acc.leads + m.leads,
     }),
-    { spend: 0, impressions: 0, reach: 0, clicks: 0, conversions: 0, revenue: 0, leads: 0 }
+    { spend: 0, impressions: 0, reach: 0, clicks: 0, conversions: 0, purchases: 0, revenue: 0, leads: 0 }
   );
 
   const ctr = totals.impressions > 0 ? (totals.clicks / totals.impressions) * 100 : 0;
@@ -132,6 +133,7 @@ export function sumMetricsSummaries(summaries: MetricsSummary[]): MetricsSummary
       reach: 0,
       clicks: 0,
       conversions: 0,
+      purchases: 0,
       revenue: 0,
       leads: 0,
       ctr: 0,
@@ -149,6 +151,7 @@ export function sumMetricsSummaries(summaries: MetricsSummary[]): MetricsSummary
       reach: acc.reach + m.reach,
       clicks: acc.clicks + m.clicks,
       conversions: acc.conversions + m.conversions,
+      purchases: acc.purchases + (m.purchases ?? 0),
       revenue: acc.revenue + m.revenue,
       leads: acc.leads + m.leads,
     }),
@@ -158,6 +161,7 @@ export function sumMetricsSummaries(summaries: MetricsSummary[]): MetricsSummary
       reach: 0,
       clicks: 0,
       conversions: 0,
+      purchases: 0,
       revenue: 0,
       leads: 0,
     }
@@ -279,13 +283,13 @@ export async function getAssistantAdLevelSummaries(
       const adId = insight.ad_id?.trim() ?? "";
       if (!adId) continue;
 
-      const { conversions } = extractConversions(insight);
+      const { conversationsStarted } = extractConversions(insight);
       const spend = safeInsightFloat(insight.spend);
       const impressions = safeInsightInt(insight.impressions);
       const clicks = safeInsightInt(insight.clicks);
       const ctr = impressions > 0 ? (clicks / impressions) * 100 : safeInsightFloat(insight.ctr);
       const cpc = clicks > 0 ? spend / clicks : safeInsightFloat(insight.cpc);
-      const costPerConversation = conversions > 0 ? spend / conversions : 0;
+      const costPerConversation = conversationsStarted > 0 ? spend / conversationsStarted : 0;
 
       out.push({
         adId,
@@ -297,7 +301,7 @@ export async function getAssistantAdLevelSummaries(
         spend,
         impressions,
         clicks,
-        conversationsStarted: conversions,
+        conversationsStarted,
         ctr,
         cpc,
         costPerConversation,
@@ -430,6 +434,7 @@ export async function getClientCampaigns(
       impressions: m.impressions,
       clicks: m.clicks,
       conversions: m.conversions,
+      purchases: m.purchases ?? 0,
       revenue: m.revenue,
       ctr: m.ctr,
       cpc: m.cpc,
@@ -518,6 +523,7 @@ export function aggregateCampaignListMetrics(
       reach: acc.reach + c.metrics.reach,
       clicks: acc.clicks + c.metrics.clicks,
       conversions: acc.conversions + c.metrics.conversions,
+      purchases: acc.purchases + (c.metrics.purchases ?? 0),
       leads: acc.leads + c.metrics.leads,
       ctr: 0,
       cpc: 0,
@@ -533,6 +539,7 @@ export function aggregateCampaignListMetrics(
       reach: 0,
       clicks: 0,
       conversions: 0,
+      purchases: 0,
       leads: 0,
       ctr: 0,
       cpc: 0,

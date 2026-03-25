@@ -8,6 +8,7 @@ export interface MetricsSummary {
   reach: number;
   clicks: number;
   conversions: number;
+  purchases: number;
   revenue: number;
   leads: number;
   ctr: number;
@@ -49,6 +50,7 @@ export interface DailyMetric {
   impressions: number;
   clicks: number;
   conversions: number;
+  purchases: number;
   revenue: number;
   ctr: number;
   cpc: number;

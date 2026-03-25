@@ -122,7 +122,7 @@ async function syncMetaAccount(account: {
 
       if (!dbCampaign) continue;
 
-      const { conversions, revenue, leads } = extractConversions(insight);
+      const { conversationsStarted, purchases, revenue, leads } = extractConversions(insight);
       const spend = safeFloat(insight.spend);
       const impressions = safeInt(insight.impressions);
       const clicks = safeInt(insight.clicks);
@@ -144,13 +144,14 @@ async function syncMetaAccount(account: {
           impressions,
           reach,
           clicks,
-          conversions,
+          conversions: conversationsStarted,
+          purchases,
           revenue,
           leads,
           ctr,
           cpc,
           cpm,
-          cpa: conversions > 0 ? spend / conversions : 0,
+          cpa: conversationsStarted > 0 ? spend / conversationsStarted : 0,
           roas: spend > 0 ? revenue / spend : 0,
           frequency,
         },
@@ -161,13 +162,14 @@ async function syncMetaAccount(account: {
           impressions,
           reach,
           clicks,
-          conversions,
+          conversions: conversationsStarted,
+          purchases,
           revenue,
           leads,
           ctr,
           cpc,
           cpm,
-          cpa: conversions > 0 ? spend / conversions : 0,
+          cpa: conversationsStarted > 0 ? spend / conversationsStarted : 0,
           roas: spend > 0 ? revenue / spend : 0,
           frequency,
         },

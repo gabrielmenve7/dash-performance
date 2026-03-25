@@ -81,6 +81,7 @@ export function OverviewDashboard({
   campaigns: initialCampaigns,
 }: OverviewDashboardProps) {
   const router = useRouter();
+  const [mode, setMode] = useState<"CONVERSAS" | "COMPRAS">("CONVERSAS");
   const [dateRange, setDateRange] = useState({
     from: subDays(new Date(), 30),
     to: new Date(),
@@ -98,6 +99,7 @@ export function OverviewDashboard({
     setDashDailyData(initialDailyData);
     setDashCampaigns(initialCampaigns);
     setDateRange({ from: subDays(new Date(), 30), to: new Date() });
+    setMode("CONVERSAS");
     isInitialMount.current = true;
   }, [client.id, initialMetrics, initialPreviousMetrics, initialDailyData, initialCampaigns]);
 
@@ -111,8 +113,8 @@ export function OverviewDashboard({
     const params = new URLSearchParams({
       from: formatDate(dateRange.from, "yyyy-MM-dd"),
       to: formatDate(dateRange.to, "yyyy-MM-dd"),
-      platform: "ALL",
-      objective: "CONVERSAS",
+      platform: mode === "COMPRAS" ? "META" : "ALL",
+      objective: mode,
     });
 
     setDashLoading(true);
@@ -139,7 +141,7 @@ export function OverviewDashboard({
       .finally(() => setDashLoading(false));
 
     return () => controller.abort();
-  }, [client.id, dateRange.from, dateRange.to]);
+  }, [client.id, dateRange.from, dateRange.to, mode]);
 
   function onClientChange(nextId: string) {
     router.push(`/?client=${nextId}`);
@@ -154,9 +156,17 @@ export function OverviewDashboard({
   const clicksChange = getChangeIndicator(dashMetrics.clicks, dashPreviousMetrics.clicks);
   const impressionsChange = getChangeIndicator(dashMetrics.impressions, dashPreviousMetrics.impressions);
   const ctrChange = getChangeIndicator(dashMetrics.ctr, dashPreviousMetrics.ctr);
+  const purchasesChange = getChangeIndicator(dashMetrics.purchases, dashPreviousMetrics.purchases);
+  const revenueChange = getChangeIndicator(dashMetrics.revenue, dashPreviousMetrics.revenue);
+  const roasChange = getChangeIndicator(dashMetrics.roas, dashPreviousMetrics.roas);
 
   const periodLabel = `${dateRange.from.toLocaleDateString("pt-BR")} — ${dateRange.to.toLocaleDateString("pt-BR")}`;
-  const conversionTitle = "Conversas Iniciadas";
+  const conversionTitle = mode === "COMPRAS" ? "Compras" : "Conversas Iniciadas";
+  const modeLabel = mode === "COMPRAS" ? "Objetivo: Vendas" : "Objetivo: Conversas";
+  const costPerPurchase = dashMetrics.purchases > 0 ? dashMetrics.spend / dashMetrics.purchases : 0;
+  const prevCostPerPurchase =
+    dashPreviousMetrics.purchases > 0 ? dashPreviousMetrics.spend / dashPreviousMetrics.purchases : 0;
+  const costPerPurchaseChange = getChangeIndicator(costPerPurchase, prevCostPerPurchase);
 
   return (
     <div className="space-y-6">
@@ -180,7 +190,16 @@ export function OverviewDashboard({
                 {client.industry}
               </Badge>
             )}
-            <Badge variant="outline" className="w-fit">Objetivo: Conversas</Badge>
+            <Select value={mode} onValueChange={(v) => setMode(v as "CONVERSAS" | "COMPRAS")}>
+              <SelectTrigger className="w-full sm:w-[220px] h-10">
+                <SelectValue placeholder="Objetivo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="CONVERSAS">Conversas</SelectItem>
+                <SelectItem value="COMPRAS">Vendas</SelectItem>
+              </SelectContent>
+            </Select>
+            <Badge variant="outline" className="w-fit">{modeLabel}</Badge>
           </div>
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Overview</h1>
@@ -198,80 +217,161 @@ export function OverviewDashboard({
         />
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard
-          title="Investimento Total"
-          value={dashLoading ? "…" : formatCurrency(dashMetrics.spend)}
-          change={spendChange.change}
-          icon={DollarSign}
-          invertChange
-        />
-        <KpiCard
-          title={conversionTitle}
-          value={dashLoading ? "…" : formatNumber(dashMetrics.conversions)}
-          change={conversionsChange.change}
-          icon={Target}
-        />
-        <KpiCard
-          title="Cliques"
-          value={dashLoading ? "…" : formatNumber(dashMetrics.clicks)}
-          change={clicksChange.change}
-          icon={MousePointerClick}
-        />
-        <KpiCard
-          title="CTR Médio"
-          value={dashLoading ? "…" : `${dashMetrics.ctr.toFixed(2)}%`}
-          change={ctrChange.change}
-          icon={MousePointerClick}
-        />
-      </div>
+      {mode === "CONVERSAS" ? (
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <KpiCard
+              title="Investimento Total"
+              value={dashLoading ? "…" : formatCurrency(dashMetrics.spend)}
+              change={spendChange.change}
+              icon={DollarSign}
+              invertChange
+            />
+            <KpiCard
+              title={conversionTitle}
+              value={dashLoading ? "…" : formatNumber(dashMetrics.conversions)}
+              change={conversionsChange.change}
+              icon={Target}
+            />
+            <KpiCard
+              title="Cliques"
+              value={dashLoading ? "…" : formatNumber(dashMetrics.clicks)}
+              change={clicksChange.change}
+              icon={MousePointerClick}
+            />
+            <KpiCard
+              title="CTR Médio"
+              value={dashLoading ? "…" : `${dashMetrics.ctr.toFixed(2)}%`}
+              change={ctrChange.change}
+              icon={MousePointerClick}
+            />
+          </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard
-          title="Custo por Conversa"
-          value={dashLoading ? "…" : formatCurrency(dashMetrics.cpa)}
-          change={cpaChange.change}
-          icon={DollarSign}
-          invertChange
-        />
-        <KpiCard
-          title="Impressões"
-          value={dashLoading ? "…" : formatNumber(dashMetrics.impressions)}
-          change={impressionsChange.change}
-          icon={Eye}
-        />
-        <KpiCard
-          title="CPC Médio"
-          value={dashLoading ? "…" : formatCurrency(dashMetrics.cpc)}
-          change={cpcChange.change}
-          icon={MousePointerClick}
-          invertChange
-        />
-        <KpiCard
-          title="CPM Médio"
-          value={dashLoading ? "…" : formatCurrency(dashMetrics.cpm)}
-          change={cpmChange.change}
-          icon={BarChart3}
-          invertChange
-        />
-      </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <KpiCard
+              title="Custo por Conversa"
+              value={dashLoading ? "…" : formatCurrency(dashMetrics.cpa)}
+              change={cpaChange.change}
+              icon={DollarSign}
+              invertChange
+            />
+            <KpiCard
+              title="Impressões"
+              value={dashLoading ? "…" : formatNumber(dashMetrics.impressions)}
+              change={impressionsChange.change}
+              icon={Eye}
+            />
+            <KpiCard
+              title="CPC Médio"
+              value={dashLoading ? "…" : formatCurrency(dashMetrics.cpc)}
+              change={cpcChange.change}
+              icon={MousePointerClick}
+              invertChange
+            />
+            <KpiCard
+              title="CPM Médio"
+              value={dashLoading ? "…" : formatCurrency(dashMetrics.cpm)}
+              change={cpmChange.change}
+              icon={BarChart3}
+              invertChange
+            />
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <KpiCard
+              title="Investimento (Vendas)"
+              value={dashLoading ? "…" : formatCurrency(dashMetrics.spend)}
+              change={spendChange.change}
+              icon={DollarSign}
+              invertChange
+            />
+            <KpiCard
+              title="Compras"
+              value={dashLoading ? "…" : formatNumber(dashMetrics.purchases)}
+              change={purchasesChange.change}
+              icon={Target}
+            />
+            <KpiCard
+              title="Receita"
+              value={dashLoading ? "…" : formatCurrency(dashMetrics.revenue)}
+              change={revenueChange.change}
+              icon={DollarSign}
+            />
+            <KpiCard
+              title="ROAS"
+              value={dashLoading ? "…" : dashMetrics.roas.toFixed(2)}
+              change={roasChange.change}
+              icon={BarChart3}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <KpiCard
+              title="Custo por Compra"
+              value={dashLoading ? "…" : formatCurrency(costPerPurchase)}
+              change={costPerPurchaseChange.change}
+              icon={DollarSign}
+              invertChange
+            />
+            <KpiCard
+              title="Cliques"
+              value={dashLoading ? "…" : formatNumber(dashMetrics.clicks)}
+              change={clicksChange.change}
+              icon={MousePointerClick}
+            />
+            <KpiCard
+              title="Impressões"
+              value={dashLoading ? "…" : formatNumber(dashMetrics.impressions)}
+              change={impressionsChange.change}
+              icon={Eye}
+            />
+            <KpiCard
+              title="CPC Médio"
+              value={dashLoading ? "…" : formatCurrency(dashMetrics.cpc)}
+              change={cpcChange.change}
+              icon={MousePointerClick}
+              invertChange
+            />
+          </div>
+        </>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {mode === "COMPRAS" ? (
+          <PerformanceChart
+            data={dashDailyData}
+            title="Investimento e Compras"
+            metrics={[
+              { key: "spend", label: "Investimento", color: "#3b82f6" },
+              { key: "purchases", label: "Compras", color: "#8b5cf6" },
+            ]}
+          />
+        ) : (
+          <PerformanceChart
+            data={dashDailyData}
+            title="Investimento e Conversas Iniciadas"
+            metrics={[
+              { key: "spend", label: "Investimento", color: "#3b82f6" },
+              { key: "conversions", label: "Conversas Iniciadas", color: "#8b5cf6" },
+            ]}
+          />
+        )}
         <PerformanceChart
           data={dashDailyData}
-          title="Investimento e Conversas Iniciadas"
-          metrics={[
-            { key: "spend", label: "Investimento", color: "#3b82f6" },
-            { key: "conversions", label: "Conversas Iniciadas", color: "#8b5cf6" },
-          ]}
-        />
-        <PerformanceChart
-          data={dashDailyData}
-          title="Cliques e Impressões"
-          metrics={[
-            { key: "clicks", label: "Cliques", color: "#f59e0b" },
-            { key: "impressions", label: "Impressões", color: "#10b981" },
-          ]}
+          title={mode === "COMPRAS" ? "Receita e ROAS" : "Cliques e Impressões"}
+          metrics={
+            mode === "COMPRAS"
+              ? [
+                  { key: "revenue", label: "Receita", color: "#10b981" },
+                  { key: "roas", label: "ROAS", color: "#f59e0b" },
+                ]
+              : [
+                  { key: "clicks", label: "Cliques", color: "#f59e0b" },
+                  { key: "impressions", label: "Impressões", color: "#10b981" },
+                ]
+          }
         />
       </div>
 
@@ -294,7 +394,15 @@ export function OverviewDashboard({
                   <TableHead>Plataforma</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Investimento</TableHead>
-                  <TableHead className="text-right">Conversas Iniciadas</TableHead>
+                  {mode === "COMPRAS" ? (
+                    <>
+                      <TableHead className="text-right">Compras</TableHead>
+                      <TableHead className="text-right">Receita</TableHead>
+                      <TableHead className="text-right">ROAS</TableHead>
+                    </>
+                  ) : (
+                    <TableHead className="text-right">Conversas Iniciadas</TableHead>
+                  )}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -322,13 +430,21 @@ export function OverviewDashboard({
                         <Badge variant={status.variant}>{status.label}</Badge>
                       </TableCell>
                       <TableCell className="text-right">{formatCurrency(campaign.metrics.spend)}</TableCell>
-                      <TableCell className="text-right">{formatNumber(campaign.metrics.conversions)}</TableCell>
+                      {mode === "COMPRAS" ? (
+                        <>
+                          <TableCell className="text-right">{formatNumber(campaign.metrics.purchases)}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(campaign.metrics.revenue)}</TableCell>
+                          <TableCell className="text-right">{campaign.metrics.roas.toFixed(2)}</TableCell>
+                        </>
+                      ) : (
+                        <TableCell className="text-right">{formatNumber(campaign.metrics.conversions)}</TableCell>
+                      )}
                     </TableRow>
                   );
                 })}
                 {dashCampaigns.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                    <TableCell colSpan={mode === "COMPRAS" ? 7 : 5} className="h-24 text-center text-muted-foreground">
                       Nenhuma campanha no período
                     </TableCell>
                   </TableRow>
