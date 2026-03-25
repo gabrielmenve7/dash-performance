@@ -168,6 +168,7 @@ export function extractConversions(insight: MetaAdInsight): {
   let leads = 0;
   let messagingStarted = 0;
   let purchases = 0;
+  let purchaseRevenueMax = 0;
 
   if (insight.actions) {
     for (const action of insight.actions) {
@@ -206,10 +207,13 @@ export function extractConversions(insight: MetaAdInsight): {
         actionValue.action_type === "purchase" ||
         actionValue.action_type === "omni_purchase"
       ) {
-        revenue += toFloat(actionValue.value);
+        purchaseRevenueMax = Math.max(purchaseRevenueMax, toFloat(actionValue.value));
       }
     }
   }
+
+  // Evita dupla contagem: a Meta pode retornar o mesmo revenue em múltiplos action_types.
+  revenue = purchaseRevenueMax;
 
   return { conversationsStarted, purchases, revenue, leads };
 }
