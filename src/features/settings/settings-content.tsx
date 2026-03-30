@@ -767,6 +767,7 @@ export function SettingsContent({ users, syncLogs, clients, hasMetaConfig }: Set
                     <TableHead>Plataforma</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Registros</TableHead>
+                    <TableHead>Obs.</TableHead>
                     <TableHead>Data</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -785,6 +786,9 @@ export function SettingsContent({ users, syncLogs, clients, hasMetaConfig }: Set
                         </Badge>
                       </TableCell>
                       <TableCell>{log.recordsSync}</TableCell>
+                      <TableCell className="max-w-[240px] text-xs text-muted-foreground">
+                        {log.message ?? "—"}
+                      </TableCell>
                       <TableCell className="text-muted-foreground">
                         {new Date(log.startedAt).toLocaleString("pt-BR")}
                       </TableCell>
@@ -792,7 +796,7 @@ export function SettingsContent({ users, syncLogs, clients, hasMetaConfig }: Set
                   ))}
                   {syncLogs.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                      <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
                         Nenhum log de sincronização
                       </TableCell>
                     </TableRow>
