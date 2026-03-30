@@ -1,7 +1,17 @@
 import { format } from "date-fns";
 import { prisma } from "@/lib/prisma";
-import { extractConversions, fetchMetaAdLevelInsights, type MetaAdInsight } from "@/lib/meta-ads";
-import type { MetricsSummary, ClientWithMetrics, CampaignWithMetrics, DailyMetric, PlatformType } from "@/types";
+import { extractConversions, fetchMetaAdLevelInsights, type MetaAdInsight } from "@/lib/integrations/meta/meta-ads";
+import type {
+  MetricsSummary,
+  ClientWithMetrics,
+  CampaignWithMetrics,
+  DailyMetric,
+  PlatformType,
+  GenderBreakdown,
+  AgeBreakdown,
+  RegionBreakdown,
+  AdBreakdownMetrics,
+} from "@/types";
 
 function objectiveFilter(objective?: string | "ALL"): Record<string, unknown> | undefined {
   if (!objective || objective === "ALL") return undefined;
@@ -572,4 +582,112 @@ export function aggregateCampaignListMetrics(
       : 0;
 
   return totalMetrics;
+}
+
+export async function getGenderBreakdown(
+  clientId: string,
+  from: Date,
+  to: Date
+): Promise<GenderBreakdown[]> {
+  const rows = await prisma.demographicMetrics.groupBy({
+    by: ["gender"],
+    where: {
+      date: { gte: from, lte: to },
+      campaign: { adAccount: { clientId } },
+    },
+    _sum: { reach: true },
+  });
+
+  const totalReach = rows.reduce((sum, r) => sum + (r._sum.reach ?? 0), 0);
+
+  return rows
+    .map((r) => ({
+      gender: r.gender,
+      reach: r._sum.reach ?? 0,
+      percentage: totalReach > 0 ? ((r._sum.reach ?? 0) / totalReach) * 100 : 0,
+    }))
+    .sort((a, b) => b.reach - a.reach);
+}
+
+export async function getAgeBreakdown(
+  clientId: string,
+  from: Date,
+  to: Date
+): Promise<AgeBreakdown[]> {
+  const rows = await prisma.demographicMetrics.groupBy({
+    by: ["ageRange"],
+    where: {
+      date: { gte: from, lte: to },
+      campaign: { adAccount: { clientId } },
+    },
+    _sum: { reach: true },
+  });
+
+  const totalReach = rows.reduce((sum, r) => sum + (r._sum.reach ?? 0), 0);
+
+  return rows
+    .map((r) => ({
+      ageRange: r.ageRange,
+      reach: r._sum.reach ?? 0,
+      percentage: totalReach > 0 ? ((r._sum.reach ?? 0) / totalReach) * 100 : 0,
+    }))
+    .sort((a, b) => b.reach - a.reach);
+}
+
+export async function getRegionBreakdown(
+  clientId: string,
+  from: Date,
+  to: Date
+): Promise<RegionBreakdown[]> {
+  const rows = await prisma.regionMetrics.groupBy({
+    by: ["region"],
+    where: {
+      date: { gte: from, lte: to },
+      campaign: { adAccount: { clientId } },
+    },
+    _sum: { reach: true },
+  });
+
+  return rows
+    .map((r) => ({
+      region: r.region,
+      reach: r._sum.reach ?? 0,
+    }))
+    .sort((a, b) => b.reach - a.reach);
+}
+
+export async function getAdLevelMetrics(
+  clientId: string,
+  from: Date,
+  to: Date
+): Promise<AdBreakdownMetrics[]> {
+  const rows = await prisma.adMetrics.groupBy({
+    by: ["platformAdId"],
+    where: {
+      date: { gte: from, lte: to },
+      campaign: { adAccount: { clientId } },
+    },
+    _sum: { impressions: true, purchases: true },
+  });
+
+  const adIds = rows.map((r) => r.platformAdId);
+  const adDetails = await prisma.adMetrics.findMany({
+    where: { platformAdId: { in: adIds } },
+    select: { platformAdId: true, adName: true, thumbnailUrl: true },
+    distinct: ["platformAdId"],
+  });
+
+  const detailMap = new Map(adDetails.map((d) => [d.platformAdId, d]));
+
+  return rows
+    .map((r) => {
+      const detail = detailMap.get(r.platformAdId);
+      return {
+        adName: detail?.adName ?? r.platformAdId,
+        thumbnailUrl: detail?.thumbnailUrl ?? null,
+        impressions: r._sum.impressions ?? 0,
+        purchases: r._sum.purchases ?? 0,
+      };
+    })
+    .sort((a, b) => b.impressions - a.impressions);
 }

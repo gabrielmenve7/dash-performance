@@ -3,8 +3,8 @@ import { streamText, convertToModelMessages, type UIMessage } from "ai";
 import { openai } from "@ai-sdk/openai";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
-import { getActiveClientById } from "@/lib/data";
-import { buildAssistantContextJson } from "@/lib/assistant-context";
+import { getActiveClientById } from "@/lib/domain";
+import { buildAssistantContextJson } from "@/features/assistant/assistant-context";
 
 export const maxDuration = 60;
 

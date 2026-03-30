@@ -5,7 +5,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { KpiCard } from "@/components/dashboard/kpi-card";
 import { PerformanceChart } from "@/components/charts/performance-chart";
+import { DonutChart } from "@/components/charts/donut-chart";
+import { BrazilMap } from "@/components/charts/brazil-map";
 import { DateRangePicker } from "@/components/dashboard/date-range-picker";
+import { AdsTable } from "@/components/dashboard/ads-table";
+import { RegionTable } from "@/components/dashboard/region-table";
 import { formatCurrency, formatNumber, getChangeIndicator } from "@/lib/utils";
 import {
   Select,
@@ -33,7 +37,15 @@ import {
 } from "lucide-react";
 import { format as formatDate, subDays } from "date-fns";
 import { toast } from "sonner";
-import type { MetricsSummary, DailyMetric, CampaignWithMetrics } from "@/types";
+import type {
+  MetricsSummary,
+  DailyMetric,
+  CampaignWithMetrics,
+  GenderBreakdown,
+  AgeBreakdown,
+  RegionBreakdown,
+  AdBreakdownMetrics,
+} from "@/types";
 
 const statusMap: Record<string, { label: string; variant: "success" | "warning" | "secondary" | "destructive" }> = {
   ACTIVE: { label: "Ativa", variant: "success" },
@@ -91,6 +103,12 @@ export function OverviewDashboard({
   const [dashDailyData, setDashDailyData] = useState(initialDailyData);
   const [dashCampaigns, setDashCampaigns] = useState(initialCampaigns);
   const [dashLoading, setDashLoading] = useState(false);
+  const [breakdownData, setBreakdownData] = useState<{
+    gender: GenderBreakdown[];
+    age: AgeBreakdown[];
+    regions: RegionBreakdown[];
+    ads: AdBreakdownMetrics[];
+  }>({ gender: [], age: [], regions: [], ads: [] });
   const isInitialMount = useRef(true);
 
   useEffect(() => {
@@ -142,6 +160,33 @@ export function OverviewDashboard({
 
     return () => controller.abort();
   }, [client.id, dateRange.from, dateRange.to, mode]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const params = new URLSearchParams({
+      from: formatDate(dateRange.from, "yyyy-MM-dd"),
+      to: formatDate(dateRange.to, "yyyy-MM-dd"),
+    });
+
+    fetch(`/api/clients/${client.id}/breakdowns?${params}`, {
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(await res.text());
+        return res.json() as Promise<{
+          gender: GenderBreakdown[];
+          age: AgeBreakdown[];
+          regions: RegionBreakdown[];
+          ads: AdBreakdownMetrics[];
+        }>;
+      })
+      .then(setBreakdownData)
+      .catch((err) => {
+        if (err?.name === "AbortError") return;
+      });
+
+    return () => controller.abort();
+  }, [client.id, dateRange.from, dateRange.to]);
 
   function onClientChange(nextId: string) {
     router.push(`/?client=${nextId}`);
@@ -453,6 +498,31 @@ export function OverviewDashboard({
             </Table>
           </CardContent>
         </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <DonutChart
+          title="Gênero"
+          data={breakdownData.gender.map((g) => ({
+            name: g.gender === "male" ? "Masculino" : g.gender === "female" ? "Feminino" : "Desconhecido",
+            value: g.reach,
+            color: g.gender === "male" ? "#3b82f6" : g.gender === "female" ? "#8b5cf6" : "#6b7280",
+          }))}
+        />
+        <DonutChart
+          title="Faixa Etária"
+          data={breakdownData.age.map((a) => ({
+            name: a.ageRange,
+            value: a.reach,
+          }))}
+        />
+      </div>
+
+      <AdsTable data={breakdownData.ads} />
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <RegionTable data={breakdownData.regions} />
+        <BrazilMap data={breakdownData.regions} />
       </div>
     </div>
   );

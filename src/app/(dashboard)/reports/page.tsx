@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { ReportsContent } from "./reports-content";
+import { ReportsContent } from "@/features/reports/reports-content";
 
 export default async function ReportsPage() {
   const session = await auth();

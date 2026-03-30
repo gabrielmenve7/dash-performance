@@ -5,10 +5,10 @@ import {
   getClientById,
   getClientCampaigns,
   getDailyMetrics,
-} from "@/lib/data";
+} from "@/lib/domain";
 import { prisma } from "@/lib/prisma";
 import { subDays } from "date-fns";
-import { ClientDetailDashboard } from "./client-detail-dashboard";
+import { ClientDetailDashboard } from "@/features/clients/client-detail-dashboard";
 
 interface Props {
   params: Promise<{ clientId: string }>;

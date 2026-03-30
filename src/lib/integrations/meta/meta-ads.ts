@@ -138,6 +138,94 @@ export async function fetchMetaAdLevelInsights(
   }
 }
 
+export interface MetaDemographicInsight {
+  date_start: string;
+  campaign_id: string;
+  age: string;
+  gender: string;
+  spend: string;
+  impressions: string;
+  reach: string;
+  clicks: string;
+  actions?: { action_type: string; value: string }[];
+}
+
+export interface MetaRegionInsight {
+  date_start: string;
+  campaign_id: string;
+  region: string;
+  spend: string;
+  impressions: string;
+  reach: string;
+  clicks: string;
+}
+
+export async function fetchMetaDemographicInsights(
+  accessToken: string,
+  adAccountId: string,
+  dateFrom: string,
+  dateTo: string
+): Promise<MetaDemographicInsight[]> {
+  const fields = [
+    "campaign_id",
+    "spend",
+    "impressions",
+    "reach",
+    "clicks",
+    "actions",
+  ].join(",");
+
+  const url = `${META_BASE_URL}/act_${adAccountId}/insights?fields=${fields}&time_range={"since":"${dateFrom}","until":"${dateTo}"}&time_increment=1&level=campaign&breakdowns=age,gender&access_token=${accessToken}&limit=500`;
+  try {
+    return await fetchMetaPaged<MetaDemographicInsight>(url);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    throw new Error(`Meta Demographic Insights API error: ${message}`);
+  }
+}
+
+export async function fetchMetaRegionInsights(
+  accessToken: string,
+  adAccountId: string,
+  dateFrom: string,
+  dateTo: string
+): Promise<MetaRegionInsight[]> {
+  const fields = [
+    "campaign_id",
+    "spend",
+    "impressions",
+    "reach",
+    "clicks",
+  ].join(",");
+
+  const url = `${META_BASE_URL}/act_${adAccountId}/insights?fields=${fields}&time_range={"since":"${dateFrom}","until":"${dateTo}"}&time_increment=1&level=campaign&breakdowns=region&access_token=${accessToken}&limit=500`;
+  try {
+    return await fetchMetaPaged<MetaRegionInsight>(url);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    throw new Error(`Meta Region Insights API error: ${message}`);
+  }
+}
+
+export async function fetchMetaAdCreatives(
+  accessToken: string,
+  adAccountId: string
+): Promise<Map<string, string>> {
+  const url = `${META_BASE_URL}/act_${adAccountId}/ads?fields=id,creative{thumbnail_url}&access_token=${accessToken}&limit=500`;
+  const rows = await fetchMetaPaged<{
+    id: string;
+    creative?: { thumbnail_url?: string };
+  }>(url);
+
+  const map = new Map<string, string>();
+  for (const row of rows) {
+    if (row.creative?.thumbnail_url) {
+      map.set(row.id, row.creative.thumbnail_url);
+    }
+  }
+  return map;
+}
+
 export function parseMetaStatus(status: string): string {
   const map: Record<string, string> = {
     ACTIVE: "ACTIVE",

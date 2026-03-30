@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { getActiveClientsForSelector } from "@/lib/data";
-import { AssistantChat } from "./assistant-chat";
+import { getActiveClientsForSelector } from "@/lib/domain";
+import { AssistantChat } from "@/features/assistant/assistant-chat";
 
 interface Props {
   searchParams: Promise<{ client?: string }>;

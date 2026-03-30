@@ -14,6 +14,14 @@ const nextConfig: NextConfig = {
       ? { NEXTAUTH_URL: vercelOrigin()! }
       : {}),
   },
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "**.fbcdn.net",
+      },
+    ],
+  },
   experimental: {
     serverActions: {
       bodySizeLimit: "2mb",

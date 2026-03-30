@@ -108,6 +108,9 @@ model Campaign {
 
   adAccount AdAccount        @relation(fields: [adAccountId], references: [id], onDelete: Cascade)
   metrics   CampaignMetrics[]
+  demographicMetrics DemographicMetrics[]
+  regionMetrics      RegionMetrics[]
+  adMetrics          AdMetrics[]
 
   @@unique([adAccountId, platformCampaignId])
   @@map("campaigns")
@@ -165,4 +168,62 @@ model Note {
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("notes")
+}
+
+model DemographicMetrics {
+  id          String   @id @default(cuid())
+  campaignId  String
+  date        DateTime @db.Date
+  ageRange    String
+  gender      String
+  impressions Int      @default(0)
+  reach       Int      @default(0)
+  clicks      Int      @default(0)
+  spend       Float    @default(0)
+  conversions Int      @default(0)
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, date, ageRange, gender])
+  @@index([date])
+  @@map("demographic_metrics")
+}
+
+model RegionMetrics {
+  id          String   @id @default(cuid())
+  campaignId  String
+  date        DateTime @db.Date
+  region      String
+  impressions Int      @default(0)
+  reach       Int      @default(0)
+  clicks      Int      @default(0)
+  spend       Float    @default(0)
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, date, region])
+  @@index([date])
+  @@map("region_metrics")
+}
+
+model AdMetrics {
+  id            String   @id @default(cuid())
+  campaignId    String
+  platformAdId  String
+  adName        String
+  adsetName     String?
+  thumbnailUrl  String?
+  date          DateTime @db.Date
+  impressions   Int      @default(0)
+  reach         Int      @default(0)
+  clicks        Int      @default(0)
+  spend         Float    @default(0)
+  conversions   Int      @default(0)
+  purchases     Int      @default(0)
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, platformAdId, date])
+  @@index([date])
+  @@map("ad_metrics")
 }

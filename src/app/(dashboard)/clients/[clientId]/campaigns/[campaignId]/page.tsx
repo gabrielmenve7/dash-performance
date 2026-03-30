@@ -2,7 +2,7 @@ import { auth } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { subDays } from "date-fns";
-import { CampaignDetailDashboard } from "./campaign-detail";
+import { CampaignDetailDashboard } from "@/features/clients/campaign-detail";
 
 interface Props {
   params: Promise<{ clientId: string; campaignId: string }>;

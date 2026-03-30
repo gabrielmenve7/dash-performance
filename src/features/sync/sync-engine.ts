@@ -2,15 +2,19 @@ import { prisma } from "@/lib/prisma";
 import {
   fetchMetaCampaigns,
   fetchMetaInsights,
+  fetchMetaAdLevelInsights,
+  fetchMetaDemographicInsights,
+  fetchMetaRegionInsights,
+  fetchMetaAdCreatives,
   parseMetaStatus,
   extractConversions,
-} from "@/lib/meta-ads";
+} from "@/lib/integrations/meta/meta-ads";
 import {
   fetchGoogleCampaigns,
   fetchGoogleMetrics,
   parseGoogleStatus,
   microsToDecimal,
-} from "@/lib/google-ads";
+} from "@/lib/integrations/google/google-ads";
 import { subDays, format } from "date-fns";
 
 /** Quantos dias de histórico buscar na Meta/Google a cada sync (máx. 730). */
@@ -178,6 +182,10 @@ async function syncMetaAccount(account: {
       recordsSync++;
     }
 
+    await syncMetaDemographics(account, dateFrom, dateTo);
+    await syncMetaRegions(account, dateFrom, dateTo);
+    await syncMetaAdLevel(account, dateFrom, dateTo);
+
     await prisma.syncLog.update({
       where: { id: syncLog.id },
       data: { status: "success", completedAt: new Date(), recordsSync },
@@ -192,6 +200,180 @@ async function syncMetaAccount(account: {
       },
     });
     throw error;
+  }
+}
+
+async function syncMetaDemographics(
+  account: { id: string; accountId: string; accessToken: string | null },
+  dateFrom: string,
+  dateTo: string
+) {
+  if (!account.accessToken) return;
+
+  const rows = await fetchMetaDemographicInsights(
+    account.accessToken,
+    account.accountId,
+    dateFrom,
+    dateTo
+  );
+
+  for (const row of rows) {
+    const dbCampaign = await prisma.campaign.findUnique({
+      where: {
+        adAccountId_platformCampaignId: {
+          adAccountId: account.id,
+          platformCampaignId: row.campaign_id,
+        },
+      },
+    });
+    if (!dbCampaign) continue;
+
+    const data = {
+      impressions: safeInt(row.impressions),
+      reach: safeInt(row.reach),
+      clicks: safeInt(row.clicks),
+      spend: safeFloat(row.spend),
+      conversions: 0,
+    };
+
+    if (row.actions) {
+      for (const action of row.actions) {
+        if (
+          action.action_type.includes("messaging_conversation_started") ||
+          action.action_type.includes("onsite_conversion.messaging_conversation_started")
+        ) {
+          data.conversions = Math.max(data.conversions, safeInt(action.value));
+        }
+      }
+    }
+
+    await prisma.demographicMetrics.upsert({
+      where: {
+        campaignId_date_ageRange_gender: {
+          campaignId: dbCampaign.id,
+          date: new Date(row.date_start),
+          ageRange: row.age,
+          gender: row.gender,
+        },
+      },
+      update: data,
+      create: {
+        campaignId: dbCampaign.id,
+        date: new Date(row.date_start),
+        ageRange: row.age,
+        gender: row.gender,
+        ...data,
+      },
+    });
+  }
+}
+
+async function syncMetaRegions(
+  account: { id: string; accountId: string; accessToken: string | null },
+  dateFrom: string,
+  dateTo: string
+) {
+  if (!account.accessToken) return;
+
+  const rows = await fetchMetaRegionInsights(
+    account.accessToken,
+    account.accountId,
+    dateFrom,
+    dateTo
+  );
+
+  for (const row of rows) {
+    const dbCampaign = await prisma.campaign.findUnique({
+      where: {
+        adAccountId_platformCampaignId: {
+          adAccountId: account.id,
+          platformCampaignId: row.campaign_id,
+        },
+      },
+    });
+    if (!dbCampaign) continue;
+
+    const data = {
+      impressions: safeInt(row.impressions),
+      reach: safeInt(row.reach),
+      clicks: safeInt(row.clicks),
+      spend: safeFloat(row.spend),
+    };
+
+    await prisma.regionMetrics.upsert({
+      where: {
+        campaignId_date_region: {
+          campaignId: dbCampaign.id,
+          date: new Date(row.date_start),
+          region: row.region,
+        },
+      },
+      update: data,
+      create: {
+        campaignId: dbCampaign.id,
+        date: new Date(row.date_start),
+        region: row.region,
+        ...data,
+      },
+    });
+  }
+}
+
+async function syncMetaAdLevel(
+  account: { id: string; accountId: string; accessToken: string | null },
+  dateFrom: string,
+  dateTo: string
+) {
+  if (!account.accessToken) return;
+
+  const [insights, thumbnails] = await Promise.all([
+    fetchMetaAdLevelInsights(account.accessToken, account.accountId, dateFrom, dateTo),
+    fetchMetaAdCreatives(account.accessToken, account.accountId),
+  ]);
+
+  for (const insight of insights) {
+    if (!insight.ad_id) continue;
+
+    const dbCampaign = await prisma.campaign.findUnique({
+      where: {
+        adAccountId_platformCampaignId: {
+          adAccountId: account.id,
+          platformCampaignId: insight.campaign_id,
+        },
+      },
+    });
+    if (!dbCampaign) continue;
+
+    const { conversationsStarted, purchases } = extractConversions(insight);
+
+    const data = {
+      adName: insight.ad_name ?? insight.ad_id,
+      adsetName: insight.adset_name ?? null,
+      thumbnailUrl: thumbnails.get(insight.ad_id) ?? null,
+      impressions: safeInt(insight.impressions),
+      reach: safeInt(insight.reach),
+      clicks: safeInt(insight.clicks),
+      spend: safeFloat(insight.spend),
+      conversions: conversationsStarted,
+      purchases,
+    };
+
+    await prisma.adMetrics.upsert({
+      where: {
+        campaignId_platformAdId_date: {
+          campaignId: dbCampaign.id,
+          platformAdId: insight.ad_id,
+          date: new Date(insight.date_start),
+        },
+      },
+      update: data,
+      create: {
+        campaignId: dbCampaign.id,
+        platformAdId: insight.ad_id,
+        date: new Date(insight.date_start),
+        ...data,
+      },
+    });
   }
 }
 

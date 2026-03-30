@@ -4,7 +4,7 @@ import {
   getAssistantCampaignSummaries,
   getDailyMetrics,
   getAssistantAdLevelSummaries,
-} from "@/lib/data";
+} from "@/lib/domain";
 
 function assistantHistoryDays(): number {
   const n = parseInt(process.env.ADS_SYNC_HISTORY_DAYS ?? "90", 10);

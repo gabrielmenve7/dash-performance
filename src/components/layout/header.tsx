@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { Bell, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { signOut } from "next-auth/react";
-import { ThemeToggle } from "@/components/theme-toggle";
+import { ThemeToggle } from "@/components/layout/theme-toggle";
 
 interface HeaderProps {
   userName: string;

@@ -7,10 +7,10 @@ import {
   getClientForUser,
   getDailyMetrics,
   getClientCampaigns,
-} from "@/lib/data";
+} from "@/lib/domain";
 import { subDays } from "date-fns";
-import { OverviewDashboard } from "./overview-dashboard";
-import { ClientDashboardRedirect } from "./client-redirect";
+import { OverviewDashboard } from "@/features/overview/overview-dashboard";
+import { ClientDashboardRedirect } from "@/features/clients/client-redirect";
 
 interface Props {
   searchParams: Promise<{ client?: string }>;

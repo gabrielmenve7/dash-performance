@@ -12,7 +12,9 @@
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "script:check-login": "tsx scripts/check-login.ts",
+    "script:check-users": "tsx scripts/check-users.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.48",
@@ -40,6 +42,7 @@
     "react": "^19.1.0",
     "react-day-picker": "^9.7.0",
     "react-dom": "^19.1.0",
+    "react-simple-maps": "^3.0.0",
     "recharts": "^2.15.4",
     "sonner": "^2.0.5",
     "tailwind-merge": "^3.3.0",

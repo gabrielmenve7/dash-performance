@@ -67,3 +67,27 @@ export interface FilterState {
   platform: PlatformType | "ALL";
   campaignStatus: string;
 }
+
+export interface GenderBreakdown {
+  gender: string;
+  reach: number;
+  percentage: number;
+}
+
+export interface AgeBreakdown {
+  ageRange: string;
+  reach: number;
+  percentage: number;
+}
+
+export interface RegionBreakdown {
+  region: string;
+  reach: number;
+}
+
+export interface AdBreakdownMetrics {
+  adName: string;
+  thumbnailUrl: string | null;
+  impressions: number;
+  purchases: number;
+}

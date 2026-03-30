@@ -1,7 +1,7 @@
-import type { NextRequest } from "next/server";
+﻿import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { syncAllAccounts } from "@/lib/sync-engine";
+import { syncAllAccounts } from "@/features/sync/sync-engine";
 
 /** Vercel Cron invokes GET; allow long sync on paid tiers via dashboard / plan limits. */
 export const maxDuration = 300;

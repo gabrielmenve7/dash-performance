@@ -1,8 +1,8 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { getClientsWithMetrics } from "@/lib/data";
+import { getClientsWithMetrics } from "@/lib/domain";
 import { subDays } from "date-fns";
-import { ClientsPageContent } from "./clients-page-content";
+import { ClientsPageContent } from "@/features/clients/clients-page-content";
 import { prisma } from "@/lib/prisma";
 
 export default async function ClientsPage() {

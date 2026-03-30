@@ -2,13 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
-  aggregateCampaignListMetrics,
-  getClientCampaigns,
-  getDailyMetrics,
-  sumMetricsSummaries,
+  getGenderBreakdown,
+  getAgeBreakdown,
+  getRegionBreakdown,
+  getAdLevelMetrics,
 } from "@/lib/domain";
-import { endOfDay, parseISO, startOfDay, subDays } from "date-fns";
-import type { PlatformType } from "@/types";
+import { endOfDay, parseISO, startOfDay } from "date-fns";
 
 export async function GET(
   req: NextRequest,
@@ -32,8 +31,6 @@ export async function GET(
 
   const fromStr = req.nextUrl.searchParams.get("from");
   const toStr = req.nextUrl.searchParams.get("to");
-  const platformParam = req.nextUrl.searchParams.get("platform");
-  const objectiveParam = req.nextUrl.searchParams.get("objective");
 
   if (!fromStr || !toStr) {
     return NextResponse.json(
@@ -48,29 +45,12 @@ export async function GET(
     return NextResponse.json({ error: "Invalid date" }, { status: 400 });
   }
 
-  const platform: PlatformType | "ALL" =
-    platformParam === "META" || platformParam === "GOOGLE"
-      ? platformParam
-      : "ALL";
-
-  const diffDays = Math.max(
-    1,
-    Math.round((to.getTime() - from.getTime()) / 86400000)
-  );
-  const prevTo = subDays(from, 1);
-  const prevFrom = subDays(prevTo, diffDays);
-
-  const [campaigns, dailyData] = await Promise.all([
-    getClientCampaigns(clientId, from, to, platform, prevFrom, prevTo, objectiveParam ?? "ALL"),
-    getDailyMetrics(clientId, from, to, platform, objectiveParam ?? "ALL"),
+  const [gender, age, regions, ads] = await Promise.all([
+    getGenderBreakdown(clientId, from, to),
+    getAgeBreakdown(clientId, from, to),
+    getRegionBreakdown(clientId, from, to),
+    getAdLevelMetrics(clientId, from, to),
   ]);
 
-  const metrics = aggregateCampaignListMetrics(campaigns);
-  const previousMetrics = sumMetricsSummaries(
-    campaigns
-      .map((c) => c.previousMetrics)
-      .filter((m): m is NonNullable<typeof m> => m != null)
-  );
-
-  return NextResponse.json({ campaigns, metrics, dailyData, previousMetrics });
+  return NextResponse.json({ gender, age, regions, ads });
 }
