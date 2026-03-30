@@ -413,7 +413,10 @@ export async function getClientCampaigns(
   }
 
   const campaigns = await prisma.campaign.findMany({
-    where: whereClause,
+    where: {
+      ...whereClause,
+      metrics: { some: { date: { gte: from, lte: to } } },
+    },
     include: {
       adAccount: true,
       metrics: {
