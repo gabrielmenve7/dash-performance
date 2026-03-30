@@ -38,6 +38,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 interface AdAccountItem {
   id: string;
@@ -78,6 +79,7 @@ interface SettingsContentProps {
 }
 
 export function SettingsContent({ users, syncLogs, clients, hasMetaConfig }: SettingsContentProps) {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -305,10 +307,38 @@ export function SettingsContent({ users, syncLogs, clients, hasMetaConfig }: Set
     setSyncing(true);
     try {
       const res = await fetch("/api/sync", { method: "POST" });
-      if (!res.ok) throw new Error();
-      toast.success("Sincronização iniciada!");
-    } catch {
-      toast.error("Erro ao iniciar sincronização");
+      const body = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        results?: { status: string; message?: string }[];
+      };
+
+      if (!res.ok) {
+        const msg =
+          body.error ||
+          (res.status === 401
+            ? "Sessão expirada ou sem permissão. Faça login novamente."
+            : `Erro ${res.status}`);
+        toast.error(msg);
+        return;
+      }
+
+      const errs = body.results?.filter((r) => r.status === "error") ?? [];
+      if (errs.length > 0) {
+        toast.warning(
+          `Algumas contas falharam: ${errs.map((e) => e.message || "erro").join("; ")}`
+        );
+      } else {
+        toast.success("Sincronização concluída.");
+      }
+      router.refresh();
+    } catch (e) {
+      toast.error(
+        e instanceof TypeError
+          ? "Tempo esgotado ou conexão interrompida. No plano Hobby da Vercel o limite é ~10s; tente reduzir ADS_SYNC_HISTORY_DAYS ou use um plano com funções mais longas."
+          : e instanceof Error
+            ? e.message
+            : "Falha ao sincronizar"
+      );
     } finally {
       setSyncing(false);
     }

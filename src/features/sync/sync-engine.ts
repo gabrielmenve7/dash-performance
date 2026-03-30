@@ -182,9 +182,7 @@ async function syncMetaAccount(account: {
       recordsSync++;
     }
 
-    await syncMetaDemographics(account, dateFrom, dateTo);
-    await syncMetaRegions(account, dateFrom, dateTo);
-    await syncMetaAdLevel(account, dateFrom, dateTo);
+    await syncMetaBreakdownsSafe(account, dateFrom, dateTo);
 
     await prisma.syncLog.update({
       where: { id: syncLog.id },
@@ -200,6 +198,29 @@ async function syncMetaAccount(account: {
       },
     });
     throw error;
+  }
+}
+
+/** Breakdowns podem falhar na Meta (permissão, parâmetro, limite). Não devem abortar o sync de campanhas. */
+async function syncMetaBreakdownsSafe(
+  account: { id: string; accountId: string; accessToken: string | null },
+  dateFrom: string,
+  dateTo: string
+) {
+  try {
+    await syncMetaDemographics(account, dateFrom, dateTo);
+  } catch (e) {
+    console.error("[sync] Meta demographics:", e instanceof Error ? e.message : e);
+  }
+  try {
+    await syncMetaRegions(account, dateFrom, dateTo);
+  } catch (e) {
+    console.error("[sync] Meta regions:", e instanceof Error ? e.message : e);
+  }
+  try {
+    await syncMetaAdLevel(account, dateFrom, dateTo);
+  } catch (e) {
+    console.error("[sync] Meta ad-level:", e instanceof Error ? e.message : e);
   }
 }
 
