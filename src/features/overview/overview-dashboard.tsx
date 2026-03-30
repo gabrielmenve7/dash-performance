@@ -161,6 +161,12 @@ export function OverviewDashboard({
     return () => controller.abort();
   }, [client.id, dateRange.from, dateRange.to, mode]);
 
+  const breakdownSyncTriggered = useRef(false);
+
+  useEffect(() => {
+    breakdownSyncTriggered.current = false;
+  }, [client.id]);
+
   useEffect(() => {
     const controller = new AbortController();
     const params = new URLSearchParams({
@@ -180,7 +186,28 @@ export function OverviewDashboard({
           ads: AdBreakdownMetrics[];
         }>;
       })
-      .then(setBreakdownData)
+      .then((data) => {
+        setBreakdownData(data);
+        const isEmpty =
+          data.gender.length === 0 &&
+          data.age.length === 0 &&
+          data.regions.length === 0 &&
+          data.ads.length === 0;
+        if (isEmpty && !breakdownSyncTriggered.current) {
+          breakdownSyncTriggered.current = true;
+          fetch(`/api/clients/${client.id}/breakdowns/sync`, { method: "POST" })
+            .then((r) => {
+              if (!r.ok) return;
+              return fetch(`/api/clients/${client.id}/breakdowns?${params}`);
+            })
+            .then(async (r) => {
+              if (!r || !r.ok) return;
+              const fresh = await r.json();
+              setBreakdownData(fresh);
+            })
+            .catch(() => {});
+        }
+      })
       .catch((err) => {
         if (err?.name === "AbortError") return;
       });

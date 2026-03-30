@@ -19,27 +19,11 @@ import {
 } from "@/lib/integrations/google/google-ads";
 import { subDays, format } from "date-fns";
 
-/** Quantos dias de histórico buscar na Meta/Google a cada sync (máx. 730). Padrão 30 para caber em timeouts da Vercel (Hobby ~10s). */
+/** Quantos dias de histórico buscar na Meta/Google a cada sync (máx. 730). Padrão 7 para caber nos 10s da Vercel Hobby. */
 function syncHistoryDays(): number {
-  const n = parseInt(process.env.ADS_SYNC_HISTORY_DAYS ?? "30", 10);
-  if (Number.isNaN(n) || n < 1) return 30;
+  const n = parseInt(process.env.ADS_SYNC_HISTORY_DAYS ?? "7", 10);
+  if (Number.isNaN(n) || n < 1) return 7;
   return Math.min(n, 730);
-}
-
-/**
- * Janela separada para breakdowns (idade/gênero, região, ads) — muito mais pesada que insights por campanha.
- * Padrão 28 dias para reduzir volume de linhas e tempo de API.
- */
-function syncBreakdownDays(): number {
-  const n = parseInt(process.env.ADS_SYNC_BREAKDOWN_DAYS ?? "28", 10);
-  if (Number.isNaN(n) || n < 1) return 28;
-  return Math.min(n, 730);
-}
-
-function isMetaBreakdownsEnabled(): boolean {
-  const v = process.env.META_SYNC_BREAKDOWNS?.trim().toLowerCase();
-  if (v === "0" || v === "false" || v === "no") return false;
-  return true;
 }
 
 function safeFloat(value: string | number | null | undefined): number {
@@ -90,10 +74,8 @@ async function syncMetaAccount(account: {
   if (!account.accessToken) throw new Error("No access token for Meta account");
 
   const days = syncHistoryDays();
-  const breakdownDays = syncBreakdownDays();
   const dateFrom = format(subDays(new Date(), days), "yyyy-MM-dd");
   const dateTo = format(new Date(), "yyyy-MM-dd");
-  const breakdownFrom = format(subDays(new Date(), breakdownDays), "yyyy-MM-dd");
 
   const syncLog = await prisma.syncLog.create({
     data: { adAccountId: account.id, status: "running" },
@@ -210,9 +192,6 @@ async function syncMetaAccount(account: {
       },
     });
 
-    if (isMetaBreakdownsEnabled()) {
-      await syncMetaBreakdownsSafe(account, breakdownFrom, dateTo, campaignIdByMeta);
-    }
   } catch (error) {
     await prisma.syncLog.update({
       where: { id: syncLog.id },
@@ -226,44 +205,37 @@ async function syncMetaAccount(account: {
   }
 }
 
-/** Breakdowns podem falhar na Meta (permissão, parâmetro, limite). Não devem abortar o sync de campanhas. */
-async function syncMetaBreakdownsSafe(
-  account: { id: string; accountId: string; accessToken: string | null },
-  dateFrom: string,
-  dateTo: string,
-  campaignIdByMeta: Map<string, string>
-) {
-  if (!account.accessToken) return;
+/**
+ * Sincroniza breakdowns (demografia, região, ads) para um cliente específico.
+ * Chamado sob demanda por endpoint separado — não faz parte do sync principal.
+ */
+export async function syncBreakdownsForClient(clientId: string) {
+  const accounts = await prisma.adAccount.findMany({
+    where: { clientId, isActive: true, platform: "META", accessToken: { not: null } },
+    select: { id: true, accountId: true, accessToken: true },
+  });
 
-  const [demoRows, regionRows] = await Promise.all([
-    fetchMetaDemographicInsights(account.accessToken, account.accountId, dateFrom, dateTo).catch(
-      (e) => {
-        console.error("[sync] Meta demographics fetch:", e instanceof Error ? e.message : e);
-        return [] as MetaDemographicInsight[];
-      }
-    ),
-    fetchMetaRegionInsights(account.accessToken, account.accountId, dateFrom, dateTo).catch(
-      (e) => {
-        console.error("[sync] Meta regions fetch:", e instanceof Error ? e.message : e);
-        return [] as MetaRegionInsight[];
-      }
-    ),
-  ]);
+  const days = parseInt(process.env.ADS_SYNC_BREAKDOWN_DAYS ?? "14", 10);
+  const dateFrom = format(subDays(new Date(), Math.min(Math.max(days, 1), 730)), "yyyy-MM-dd");
+  const dateTo = format(new Date(), "yyyy-MM-dd");
 
-  try {
-    await syncMetaDemographicsRows(demoRows, campaignIdByMeta);
-  } catch (e) {
-    console.error("[sync] Meta demographics:", e instanceof Error ? e.message : e);
-  }
-  try {
-    await syncMetaRegionRows(regionRows, campaignIdByMeta);
-  } catch (e) {
-    console.error("[sync] Meta regions:", e instanceof Error ? e.message : e);
-  }
-  try {
-    await syncMetaAdLevel(account, dateFrom, dateTo, campaignIdByMeta);
-  } catch (e) {
-    console.error("[sync] Meta ad-level:", e instanceof Error ? e.message : e);
+  for (const account of accounts) {
+    if (!account.accessToken) continue;
+
+    const campaignRows = await prisma.campaign.findMany({
+      where: { adAccountId: account.id },
+      select: { id: true, platformCampaignId: true },
+    });
+    const campaignIdByMeta = new Map(campaignRows.map((c) => [c.platformCampaignId, c.id]));
+
+    const [demoRows, regionRows] = await Promise.all([
+      fetchMetaDemographicInsights(account.accessToken, account.accountId, dateFrom, dateTo).catch(() => [] as MetaDemographicInsight[]),
+      fetchMetaRegionInsights(account.accessToken, account.accountId, dateFrom, dateTo).catch(() => [] as MetaRegionInsight[]),
+    ]);
+
+    await syncMetaDemographicsRows(demoRows, campaignIdByMeta).catch(() => {});
+    await syncMetaRegionRows(regionRows, campaignIdByMeta).catch(() => {});
+    await syncMetaAdLevel(account, dateFrom, dateTo, campaignIdByMeta).catch(() => {});
   }
 }
 
