@@ -34,6 +34,7 @@ import {
   MousePointerClick,
   Eye,
   BarChart3,
+  ArrowLeft,
 } from "lucide-react";
 import { format as formatDate, subDays } from "date-fns";
 import { toast } from "sonner";
@@ -242,6 +243,14 @@ export function OverviewDashboard({
 
   return (
     <div className="space-y-6">
+      <Link
+        href="/"
+        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        Todos os Clientes
+      </Link>
+
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-3 flex-1 min-w-0">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">

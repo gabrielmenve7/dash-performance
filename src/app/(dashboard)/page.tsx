@@ -7,9 +7,11 @@ import {
   getClientForUser,
   getDailyMetrics,
   getClientCampaigns,
+  getClientsOverviewCards,
 } from "@/lib/domain";
 import { subDays } from "date-fns";
 import { OverviewDashboard } from "@/features/overview/overview-dashboard";
+import { ClientsOverviewGrid } from "@/features/overview/clients-overview-grid";
 import { ClientDashboardRedirect } from "@/features/clients/client-redirect";
 
 interface Props {
@@ -33,6 +35,13 @@ export default async function DashboardPage({ searchParams }: Props) {
   }
 
   const sp = await searchParams;
+  const requestedId = sp.client;
+
+  if (!requestedId) {
+    const cards = await getClientsOverviewCards();
+    return <ClientsOverviewGrid clients={cards} />;
+  }
+
   const clientList = await getActiveClientsForSelector();
 
   if (clientList.length === 0) {
@@ -43,14 +52,13 @@ export default async function DashboardPage({ searchParams }: Props) {
     );
   }
 
-  const requestedId = sp.client;
-  if (!requestedId || !clientList.some((c) => c.id === requestedId)) {
-    redirect(`/?client=${clientList[0].id}`);
+  if (!clientList.some((c) => c.id === requestedId)) {
+    redirect("/");
   }
 
   const client = await getActiveClientById(requestedId);
   if (!client) {
-    redirect(`/?client=${clientList[0].id}`);
+    redirect("/");
   }
 
   const clientId = client.id;

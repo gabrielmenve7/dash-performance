@@ -91,3 +91,17 @@ export interface AdBreakdownMetrics {
   impressions: number;
   purchases: number;
 }
+
+export interface ClientOverviewCard {
+  id: string;
+  name: string;
+  slug: string;
+  industry: string | null;
+  logoUrl: string | null;
+  dominantType: "CONVERSAS" | "COMPRAS";
+  spend: number;
+  conversions: number;
+  purchases: number;
+  costPerConversion: number;
+  costPerPurchase: number;
+}

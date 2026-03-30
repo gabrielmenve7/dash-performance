@@ -4,6 +4,7 @@ import { extractConversions, fetchMetaAdLevelInsights, type MetaAdInsight } from
 import type {
   MetricsSummary,
   ClientWithMetrics,
+  ClientOverviewCard,
   CampaignWithMetrics,
   DailyMetric,
   PlatformType,
@@ -693,4 +694,67 @@ export async function getAdLevelMetrics(
       };
     })
     .sort((a, b) => b.impressions - a.impressions);
+}
+
+/** Mini-overview de todos os clientes ativos (últimos 7 dias), classificados pelo tipo de conversão dominante. */
+export async function getClientsOverviewCards(): Promise<ClientOverviewCard[]> {
+  const clients = await prisma.client.findMany({
+    where: { isActive: true },
+    select: { id: true, name: true, slug: true, industry: true, logoUrl: true },
+    orderBy: { name: "asc" },
+  });
+
+  const to = new Date();
+  const from = new Date();
+  from.setDate(from.getDate() - 7);
+
+  const conversasFilter = objectiveFilter("CONVERSAS")!;
+  const comprasFilter = objectiveFilter("COMPRAS")!;
+
+  const cards: ClientOverviewCard[] = [];
+
+  for (const client of clients) {
+    const [conversasMetrics, comprasMetrics] = await Promise.all([
+      prisma.campaignMetrics.findMany({
+        where: {
+          date: { gte: from, lte: to },
+          campaign: { adAccount: { clientId: client.id }, ...conversasFilter },
+        },
+      }),
+      prisma.campaignMetrics.findMany({
+        where: {
+          date: { gte: from, lte: to },
+          campaign: { adAccount: { clientId: client.id }, ...comprasFilter },
+        },
+      }),
+    ]);
+
+    const aggConversas = aggregateMetrics(conversasMetrics);
+    const aggCompras = aggregateMetrics(comprasMetrics);
+
+    const dominantType: "CONVERSAS" | "COMPRAS" =
+      aggCompras.spend > aggConversas.spend ? "COMPRAS" : "CONVERSAS";
+
+    const spend = dominantType === "COMPRAS" ? aggCompras.spend : aggConversas.spend;
+    const conversions = aggConversas.conversions;
+    const purchases = aggCompras.purchases;
+    const costPerConversion = aggConversas.conversions > 0 ? aggConversas.spend / aggConversas.conversions : 0;
+    const costPerPurchase = aggCompras.purchases > 0 ? aggCompras.spend / aggCompras.purchases : 0;
+
+    cards.push({
+      id: client.id,
+      name: client.name,
+      slug: client.slug,
+      industry: client.industry,
+      logoUrl: client.logoUrl,
+      dominantType,
+      spend,
+      conversions,
+      purchases,
+      costPerConversion,
+      costPerPurchase,
+    });
+  }
+
+  return cards;
 }
