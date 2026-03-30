@@ -1,12 +1,9 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import {
-  ComposableMap,
-  Geographies,
-  Geography,
-  ZoomableGroup,
-} from "react-simple-maps";
+import { useState, useMemo, useEffect } from "react";
+import { geoMercator, geoPath } from "d3-geo";
+import { feature } from "topojson-client";
+import type { Topology, GeometryCollection } from "topojson-specification";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatNumber } from "@/lib/utils";
 import type { RegionBreakdown } from "@/types";
@@ -59,12 +56,37 @@ function matchRegionToState(regionName: string): string | null {
   return null;
 }
 
+interface GeoFeature {
+  type: "Feature";
+  properties: { name: string };
+  geometry: GeoJSON.Geometry;
+}
+
 interface BrazilMapProps {
   data: RegionBreakdown[];
 }
 
 export function BrazilMap({ data }: BrazilMapProps) {
   const [tooltip, setTooltip] = useState<{ name: string; reach: number } | null>(null);
+  const [features, setFeatures] = useState<GeoFeature[]>([]);
+
+  useEffect(() => {
+    fetch(BRAZIL_TOPO_URL)
+      .then((res) => res.json())
+      .then((geo) => {
+        if (geo.type === "Topology") {
+          const key = Object.keys(geo.objects)[0];
+          const fc = feature(
+            geo as Topology<{ [k: string]: GeometryCollection }>,
+            geo.objects[key] as GeometryCollection
+          );
+          setFeatures((fc as GeoJSON.FeatureCollection).features as GeoFeature[]);
+        } else if (geo.type === "FeatureCollection") {
+          setFeatures(geo.features as GeoFeature[]);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const reachByState = useMemo(() => {
     const map = new Map<string, number>();
@@ -82,6 +104,17 @@ export function BrazilMap({ data }: BrazilMapProps) {
     [reachByState]
   );
 
+  const projection = useMemo(
+    () =>
+      geoMercator()
+        .center([-54, -15])
+        .scale(550)
+        .translate([250, 200]),
+    []
+  );
+
+  const pathGenerator = useMemo(() => geoPath().projection(projection), [projection]);
+
   function getFillColor(stateName: string): string {
     const reach = reachByState.get(stateName) ?? 0;
     if (reach === 0) return "var(--color-muted)";
@@ -97,38 +130,25 @@ export function BrazilMap({ data }: BrazilMapProps) {
       </CardHeader>
       <CardContent className="p-2">
         <div className="h-[350px] relative">
-          <ComposableMap
-            projection="geoMercator"
-            projectionConfig={{ center: [-54, -15], scale: 600 }}
-            style={{ width: "100%", height: "100%" }}
-          >
-            <ZoomableGroup>
-              <Geographies geography={BRAZIL_TOPO_URL}>
-                {({ geographies }) =>
-                  geographies.map((geo) => {
-                    const stateName = geo.properties.name as string;
-                    const reach = reachByState.get(stateName) ?? 0;
-                    return (
-                      <Geography
-                        key={geo.rsmKey}
-                        geography={geo}
-                        fill={getFillColor(stateName)}
-                        stroke="var(--color-border)"
-                        strokeWidth={0.5}
-                        style={{
-                          hover: { fill: "#3b82f6", cursor: "pointer" },
-                        }}
-                        onMouseEnter={() =>
-                          setTooltip({ name: stateName, reach })
-                        }
-                        onMouseLeave={() => setTooltip(null)}
-                      />
-                    );
-                  })
-                }
-              </Geographies>
-            </ZoomableGroup>
-          </ComposableMap>
+          <svg viewBox="0 0 500 420" className="w-full h-full">
+            {features.map((feat, i) => {
+              const name = feat.properties.name;
+              const d = pathGenerator(feat as unknown as GeoJSON.Feature) ?? "";
+              const reach = reachByState.get(name) ?? 0;
+              return (
+                <path
+                  key={i}
+                  d={d}
+                  fill={getFillColor(name)}
+                  stroke="var(--color-border)"
+                  strokeWidth={0.5}
+                  className="transition-colors hover:fill-blue-500 cursor-pointer"
+                  onMouseEnter={() => setTooltip({ name, reach })}
+                  onMouseLeave={() => setTooltip(null)}
+                />
+              );
+            })}
+          </svg>
 
           {tooltip && (
             <div className="absolute top-2 right-2 bg-popover border rounded-lg px-3 py-2 text-sm shadow-md pointer-events-none">
